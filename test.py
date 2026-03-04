@@ -8,9 +8,26 @@ import config as cfg
 
 # Inizializzazione
 env = Environment(xlim=cfg.X_LIM, ylim=cfg.Y_LIM)
-env.set_zones(cfg.PICKUP_ZONE, cfg.DELIVERY_ZONE) # (x left corner, y left corner, width, height)
+
 env.add_obstacle([(2, 0), (4, 0), (4, 2), (2, 2)])
 env.add_obstacle([(-6, -3), (-2, -3), (-2, -2.5), (-6, -2.5)])
+# env.add_obstacle([
+#     # Bordo superiore frastagliato
+#     (1.0, -1.0), (1.2, -1.0), (1.2, -1.2), (1.4, -1.2), (1.4, -1.0), (1.8, -1.0),
+#     (1.8, -1.2), (2.2, -1.2), (2.2, -0.8), (2.6, -0.8), (2.6, -1.4), (3.0, -1.4),
+    
+#     # Lato destro con sporgenze e rientranze (effetto "denti")
+#     (3.0, -1.8), (2.8, -1.8), (2.8, -2.0), (3.2, -2.0), (3.2, -2.4), (2.8, -2.4),
+#     (2.8, -2.8), (3.0, -2.8), (3.0, -3.2), 
+    
+#     # Bordo inferiore a zig-zag
+#     (2.6, -3.2), (2.6, -3.4), (2.2, -3.4), (2.2, -3.2), (1.8, -3.2), (1.8, -3.6), 
+#     (1.4, -3.6), (1.4, -3.4), (1.0, -3.4), (1.0, -3.6), (0.6, -3.6),
+    
+#     # Lato sinistro con profonde insenature
+#     (0.6, -3.2), (0.8, -3.2), (0.8, -2.8), (0.6, -2.8), (0.6, -2.4), (0.4, -2.4), 
+#     (0.4, -2.0), (0.8, -2.0), (0.8, -1.6), (0.6, -1.6), (0.6, -1.0)
+# ])
 
 obstacles_list = env.get_obstacle_polygons()
 
@@ -64,7 +81,7 @@ for i in range(2000):
     ax.set_ylim(-8, 8)
 
     # 6. AGGIORNIAMO IL GRAFICO
-    plt.pause(0.0001) 
+    plt.pause(0.005) 
 
 plt.ioff()
 plt.show()

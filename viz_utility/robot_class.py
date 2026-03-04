@@ -1,12 +1,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+import config as cfg
+
 class Robot:
   """
   A simple unicycle robot class for 2D simulation
   """ 
   
-  def __init__(self, robot_id, x = 0.0, y = 0.0, theta = 0.0, radius = 0.5, color = 'blue'):
+  def __init__(self, robot_id, x = 0.0, y = 0.0, theta = 0.0, radius = cfg.ROBOT_RADIUS, color = 'blue'):
     self.robot_id = robot_id
     self.state = np.array([x, y, theta], dtype=float) # [x, y, theta]
     self.radius = radius

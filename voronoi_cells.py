@@ -4,7 +4,7 @@ from shapely import polygons
 from shapely import geometry
 import shapely
 from shapely.geometry import Polygon, box, point, MultiPoint, LineString, Point
-import Intelligent_distributed_systems_PROJECT.config as cfg
+import config as cfg
 from shapely.ops import unary_union
 
 
@@ -24,8 +24,8 @@ class VoronoiCell:
     self.boundary_poly = box(*self.bounds) # Create a rectangle for the environment boundaries (using shapely library)
 
     #Ray casting resolituon 
-    self.num_rays = 120
-    self.angles = np.linspace(0, 2 * np.pi, self.num_rays, endpoint=False) # angles for ray casting
+    self.num_rays = int(360 / cfg.RAY_CASTING_RESOLUTION)
+    self.angles = np.linspace(0, 2 * np.pi, self.num_rays, endpoint=False) # Precompute the angles for ray casting
 
   def ray_casting_polygon(self, robot_pos, obstacles):
     """
@@ -42,7 +42,7 @@ class VoronoiCell:
     robot_point = Point(robot_pos) # Convert robot position to a shapely Point for distance calculations
         
     # Inflate obstacles 
-    inflated_obstacles = [obs.buffer(cfg.ROBOT_RADIUS) for obs in obstacles]
+    inflated_obstacles = [obs.buffer(cfg.OBS_INFLATION_RADIUS) for obs in obstacles]
     if inflated_obstacles:
       # Create a single polygon representing the union of all inflated obstacles for efficient difference operations
       collision_map = unary_union(inflated_obstacles).buffer(0) # Buffer(0) to clean up any potential geometry issue

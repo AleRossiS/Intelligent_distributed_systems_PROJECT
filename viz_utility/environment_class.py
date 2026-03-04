@@ -38,16 +38,6 @@ class Environment:
     """Returns a list of shapely Polygons representing the obstacles in the environment."""
     return [Polygon(obs) for obs in self.obstacles]
 
-    
-  def set_zones(self, pickup_rect, delivery_rect):
-    """Sets the pickup and delivery zones.
-    args:
-        pickup_rect: tuple (x, y, width, height) defining the pickup zone.
-        delivery_rect: tuple (x, y, width, height) defining the delivery zone.
-    """
-    self.pickup_zone = pickup_rect
-    self.delivery_zone = delivery_rect
-  
   
   def render(self, ax):
     """Renders the environment on a given Matplotlib axis.
@@ -58,17 +48,6 @@ class Environment:
     ax.set_xlim(self.xlim)
     ax.set_ylim(self.ylim)
     ax.set_aspect('equal')
-    
-    # Draw Pickup and Delivery Zones
-    if self.pickup_zone:
-      x, y, w, h = self.pickup_zone
-      ax.add_patch(patches.Rectangle((x, y), w, h, color='green', alpha=0.2))
-      ax.text(x+w/2, y+h/2, "PICKUP", color='green', ha='center', alpha=0.5)
-
-    if self.delivery_zone:
-      x, y, w, h = self.delivery_zone
-      ax.add_patch(patches.Rectangle((x, y), w, h, color='orange', alpha=0.2))
-      ax.text(x+w/2, y+h/2, "DELIVERY", color='orange', ha='center', alpha=0.5)
 
     # Draw Obstacles
     for obs_vertices in self.obstacles:
