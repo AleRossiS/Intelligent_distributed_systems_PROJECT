@@ -65,7 +65,7 @@ class VoronoiCell:
         visible_ray = ray_line # If there are no obstacles, the entire ray is visible
       
       # Initialize the hit point as the end of the ray (in case there are no intersections)
-      hit_point = (robot_pos[0], robot_pos[1]) 
+      hit_point = ray_end
       
       # If the visible part of the ray is not empty, we need to find the point where it ends 
       if not visible_ray.is_empty:
@@ -98,10 +98,10 @@ class VoronoiCell:
 
 
   def compute_and_clip(self, points, robot_index, obstacles=[]):
-    """Compute the Voronoi diagram for the given points and clip the cells to the sensing range and obstacles (including the environment boundaries) using a ray casting approach.
+    """Compute the Voronoi cell for the given robot and clip the cells to the sensing range and obstacles (including the environment boundaries) using a ray casting approach.
 
     Args:
-        points: list of (x, y) tuples representing robot positions.
+        points: list of (x, y) tuples representing all robots positions.
         robot_index: index of the robot for which we want to compute the Voronoi cell.
         
         ex: points = [(1, 1), (3, 1), (2, 3)]
