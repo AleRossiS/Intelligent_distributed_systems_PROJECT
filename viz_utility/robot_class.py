@@ -13,6 +13,8 @@ class Robot:
     self.state = np.array([x, y, theta], dtype=float) # [x, y, theta]
     self.radius = radius
     self.color = color
+    self.history_x = [self.state[0]]
+    self.history_y = [self.state[1]]
     
   def update_pose(self, u, dt):
     """
@@ -21,6 +23,8 @@ class Robot:
       x_ = v * cos(theta)
       y_dot = v * sin(theta)
       theta_dot = w
+      
+    And saves the new position in the history lists for later visualization.
 
     Args:
       u: control input [v, w]
@@ -45,12 +49,18 @@ class Robot:
     # Normalize theta to be within [-pi, pi]
     self.state[2] = (self.state[2] + np.pi) % (2 * np.pi) - np.pi
     
-  def draw(self, ax):
+    # Save resulting position to the history lists
+    self.history_x.append(self.state[0])
+    self.history_y.append(self.state[1])
+    
+    
+  def draw(self, ax, show_history=True):
     """
-    Draws the robot on a given Matplotlib axis
+    Draws the robot and its trajectory on a given Matplotlib axis
     
     Args:
       ax: Matplotlib axis to draw on
+      show_history: if True, also draws the trajectory history of the robot
     """
     x, y, theta = self.state
     
@@ -69,5 +79,9 @@ class Robot:
     
     # Label the robot with its ID
     ax.text(x, y + self.radius*1.2, f"R{self.robot_id}", ha='center')
+    
+    # Plot robto trajectory
+    if show_history:
+        ax.plot(self.history_x, self.history_y, color=self.color, linewidth=1.5, alpha=0.4, linestyle='-')
     
   
