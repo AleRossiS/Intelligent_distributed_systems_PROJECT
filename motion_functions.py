@@ -75,7 +75,7 @@ class MotionController:
                 # Decide randomly whether to turn clockwise or counterclockwise
                 self.avoidance_dir = np.random.choice([-1, 1])
             
-            self.target_theta = self.target_theta + np.pi/8*(self.avoidance_dir)# New Angle towards the centroid
+            self.target_theta = theta + np.pi/8*(self.avoidance_dir)# New Angle towards the centroid
             
             # Sample from Lévy distribution new time
             raw_time = levy_stable.rvs(alpha=ALPHA,    # stability parameter (0 < alpha <= 2)
@@ -85,7 +85,7 @@ class MotionController:
             
             self.time_remaining = np.clip(abs(raw_time), MIN_TIME, MAX_TIME)  # Ensure time is within bounds
         else:
-            self.davoidance_dir = None # Reset the boundary avoidance direction when not near boundary anymore
+            self.avoidance_dir = None # Reset the boundary avoidance direction when not near boundary anymore
         
         # 3. If not near boundary just do Levy Flight until time runs out
         if self.time_remaining <= 0:
