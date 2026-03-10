@@ -2,13 +2,14 @@
 
 
 # --- ENVIRONMENT SETTINGS ---
-X_LIM = (-10, 10)
+X_LIM = (-15, 15)
 Y_LIM = (-10, 10)
 
 # --- ROBOT SETTINGS ---
 SENSING_RANGE = 3.0
 ROBOT_RADIUS = 0.5
 OBS_INFLATION_RADIUS = 0.5 # should be = ROBOT_RADIUS to ensure safety
+DIST_BTW_ROBOTS = 0.1 # Minimum distance to maintain between robots to avoid collisions
 
 # --- RAY CASTING SETTINGS ---
 # NB if this vaule is too small, the simulation will lag a bit

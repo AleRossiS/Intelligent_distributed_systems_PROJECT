@@ -2,8 +2,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from viz_utility.robot_class import Robot
 from viz_utility.environment_class import Environment
-import config as cfg
-from motion_functions import LevyController
+import Intelligent_distributed_systems_PROJECT.config as cfg
+from motion_functions import MotionController
 
 
 plt.close('all')
@@ -23,22 +23,23 @@ r2 = Robot(2, x=3, y=-3, color='blue')
 env.add_robot(r1)
 env.add_robot(r2)
 
-
-# 3. Setup Animazione
-plt.ion() # Attiva la modalità interattiva
-fig, ax = plt.subplots(figsize=(8,8))
-
 dt = 0.1 # Step temporale
 sim_steps = 1500 # Numero di frame dell'animazione
 
-ctrl1 = LevyController()
-ctrl2 = LevyController()
+ctrl1 = MotionController()
+ctrl2 = MotionController()
+
+# (Opzionale) Visualizza la distribuzione di Lévy per verificare che sia corretta
+ctrl1.plot_levy_distribution()
+
+fig, ax = plt.subplots(figsize=(8,8))
+plt.ion()
 
 for i in range(sim_steps):
     # --- A. AGGIORNAMENTO FISICA E LOGICA ---
     # Calcolo il comando di velocità usando il Lévy Flight
-    u1 = ctrl1.get_control(r1.state, dt=0.1)
-    u2 = ctrl2.get_control(r2.state, dt=0.1)
+    u1 = ctrl1.levy_control(r1.state, dt=0.1)
+    u2 = ctrl2.levy_control(r2.state, dt=0.1)
     
     # Aggiorno la posizione del robot
     r1.update_pose(u1, dt)
@@ -56,3 +57,4 @@ for i in range(sim_steps):
 plt.ioff()
 print("Simulazione Terminata!")
 plt.show()
+

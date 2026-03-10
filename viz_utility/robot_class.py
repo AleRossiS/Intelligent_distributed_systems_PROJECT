@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-import config as cfg
+import Intelligent_distributed_systems_PROJECT.config as cfg
 
 class Robot:
   """
@@ -70,7 +70,7 @@ class Robot:
                         edgecolor='black', 
                         linewidth=1, 
                         fill=True, 
-                        alpha=0.5)
+                        alpha=1)
     ax.add_patch(circle)
     
     front_x = x + self.radius * np.cos(theta)

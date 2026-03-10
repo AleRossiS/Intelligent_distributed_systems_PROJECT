@@ -4,7 +4,7 @@ from shapely import polygons
 from shapely import geometry
 import shapely
 from shapely.geometry import Polygon, box, point, MultiPoint, LineString, Point
-import config as cfg
+import Intelligent_distributed_systems_PROJECT.config as cfg
 from shapely.ops import unary_union
 
 
@@ -19,8 +19,8 @@ class VoronoiCell:
     boundary_poly: shapely Polygon representing the environment boundaries.
   """
   
-  def __init__(self, x_lim, y_lim):
-    self.bounds = [x_lim[0], y_lim[0], x_lim[1], y_lim[1]]
+  def __init__(self):
+    self.bounds = [cfg.X_LIM[0], cfg.Y_LIM[0], cfg.X_LIM[1], cfg.Y_LIM[1]]
     self.boundary_poly = box(*self.bounds) # Create a rectangle for the environment boundaries (using shapely library)
 
     #Ray casting resolituon 
@@ -90,9 +90,7 @@ class VoronoiCell:
       return robot_point.buffer(0.01)
       
     vis_poly = Polygon(ray_vertices) # Create a polygon from the ray vertices
-    
-    # 3. Clip the visibility polygon to the environment boundaries 
-    vis_poly = vis_poly.intersection(self.boundary_poly)
+
     
     return vis_poly
 
@@ -130,7 +128,7 @@ class VoronoiCell:
     
     # Computes the Voronoi diagram for all the points (robots + dummies)
     vor = Voronoi(all_points) # From scipy library
-
+    
     # Extract the Voronoi region corresponding to the specified robot index
     region_idx = vor.point_region[robot_index]
     region_vertices_indices = vor.regions[region_idx]
@@ -143,6 +141,9 @@ class VoronoiCell:
       
       # 1. Voronoi polygons computation   
       vor_poly = Polygon([vor.vertices[v] for v in region_vertices_indices])
+      
+      # Inflate the Voronoi cell by a safety margin )
+      vor_poly = vor_poly.buffer(-cfg.DIST_BTW_ROBOTS)
         
       # 2. Ray Casting 
       vis_poly = self.ray_casting_polygon(robot_pos, obstacles)
@@ -190,7 +191,7 @@ class VoronoiCell:
           x, y = poly.exterior.xy
           
           ax.fill(x, y, alpha=0.5, color=cell_color, zorder=0)
-          ax.plot(x, y, color='black', linewidth=1.5, linestyle='--', zorder=0)
+          ax.plot(x, y, color='black', linewidth=1, linestyle='--', zorder=0)
 
       if centroids is not None:
         for cx, cy in centroids:
