@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.stats import levy_stable
 import matplotlib.pyplot as plt
-from shapely.geometry import Point
+from shapely.geometry import Point, LineString
 import Intelligent_distributed_systems_PROJECT.config as cfg
 
 
@@ -31,6 +31,7 @@ class MotionController:
         # Internal navigation state
         self.time_remaining = 0.0
         self.target_theta = 0.0
+        self.avoidance_dir = None # direction in whitch to rotate when near boundary (1 for CCW, -1 for CW)
 
     def levy_control(self, robot_state, dt, voronoi, centroid):
         """
@@ -50,16 +51,31 @@ class MotionController:
         x, y, theta = robot_state # Current orientation of the robot
         robot_pos = Point(x, y) # Current position as a Point object
         
+        # 1. Create a line in the direction of the robot's heading and check distance to Voronoi boundary
+        heading_line = LineString([(x, y), (x + cfg.SENSING_RANGE*1.2 * np.cos(theta), y + cfg.SENSING_RANGE*1.2 * np.sin(theta))])
+
+        is_near_boundary = False # Initialize the flag
         
-        # 1. Check if the robot is close to the Voronoi boundary 
-        is_near_boundary = False
-        if voronoi.exterior.distance(robot_pos) < cfg.ROBOT_RADIUS*1.2: # If the distance to the boundary is less than 
-            is_near_boundary = True
+        if voronoi.exterior.intersects(heading_line):
+            intersection = voronoi.exterior.intersection(heading_line) # Find the intersection point
+            
+        # Compute distance to the boundary
+        if not intersection.is_empty:
+            if intersection.geom_type == 'Point':
+                dist = robot_pos.distance(intersection)
+                
+            # Check if the robot is within a certain threshold distance to the boundary
+            if dist < cfg.SENSING_RANGE * 0.5:
+                is_near_boundary = True
             
         # 2. If near the boundary, set a new target angle towards the centroid and sample a new flight time
         if is_near_boundary:
             
-            self.target_theta = np.arctan2(centroid[1] - y, centroid[0] - x) # New Angle towards the centroid
+            if self.avoidance_dir is None:
+                # Decide randomly whether to turn clockwise or counterclockwise
+                self.avoidance_dir = np.random.choice([-1, 1])
+            
+            self.target_theta = self.target_theta + np.pi/8*(self.avoidance_dir)# New Angle towards the centroid
             
             # Sample from Lévy distribution new time
             raw_time = levy_stable.rvs(alpha=ALPHA,    # stability parameter (0 < alpha <= 2)
@@ -68,10 +84,11 @@ class MotionController:
                                        scale=SCALE)    # scale parameter (scale > 0)
             
             self.time_remaining = np.clip(abs(raw_time), MIN_TIME, MAX_TIME)  # Ensure time is within bounds
-
+        else:
+            self.davoidance_dir = None # Reset the boundary avoidance direction when not near boundary anymore
         
         # 3. If not near boundary just do Levy Flight until time runs out
-        elif self.time_remaining <= 0:
+        if self.time_remaining <= 0:
             self.target_theta = np.random.uniform(-np.pi, np.pi) # Random new direction
             
             #Sample from Levy dsitrib
