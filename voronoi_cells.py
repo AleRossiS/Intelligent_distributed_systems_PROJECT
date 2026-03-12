@@ -4,7 +4,7 @@ from shapely import polygons
 from shapely import geometry
 import shapely
 from shapely.geometry import Polygon, box, point, MultiPoint, LineString, Point
-import Intelligent_distributed_systems_PROJECT.config as cfg
+import config as cfg
 from shapely.ops import unary_union
 
 

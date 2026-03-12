@@ -2,10 +2,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from viz_utility.robot_class import Robot
 from viz_utility.environment_class import Environment
-from Intelligent_distributed_systems_PROJECT.voronoi_cells import VoronoiCell
+from voronoi_cells import VoronoiCell
 from motion_functions import MotionController
 
-import Intelligent_distributed_systems_PROJECT.config as cfg
+import config as cfg
 
 plt.close('all')
 
@@ -87,8 +87,8 @@ for i in range(2000):
     cella2, centroid2 = vor_r2.compute_and_clip(pos, robot_index=1, obstacles=obstacles_list) 
     
     
-    u1 = ctrl1.levy_control(r1.state, dt=0.1, voronoi=cella1[0], centroid=centroid1[0])
-    u2 = ctrl2.levy_control(r2.state, dt=0.1, voronoi=cella2[0], centroid=centroid2[0])
+    u1 = ctrl1.levy_control(r1.state, dt=0.1, voronoi=cella1[0]) 
+    u2 = ctrl2.levy_control(r2.state, dt=0.1, voronoi=cella2[0]) 
 
     # Aggiorno la posizione del robot
     r1.update_pose(u1, dt)

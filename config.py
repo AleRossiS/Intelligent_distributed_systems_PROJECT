@@ -2,7 +2,7 @@
 
 
 # --- ENVIRONMENT SETTINGS ---
-X_LIM = (-15, 15)
+X_LIM = (-10, 10)
 Y_LIM = (-10, 10)
 
 # --- ROBOT SETTINGS ---

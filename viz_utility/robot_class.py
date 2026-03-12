@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-import Intelligent_distributed_systems_PROJECT.config as cfg
+import config as cfg
 
 class Robot:
   """

@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from shapely.geometry import Polygon
-import Intelligent_distributed_systems_PROJECT.config as cfg
+import config as cfg
 
 class Environment:
   """
