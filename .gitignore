@@ -1,0 +1,56 @@
+# =========================
+# PYTHON & VENV
+# =========================
+# Ignora l'ambiente virtuale (MOLTO IMPORTANTE)
+venv/
+env/
+.env
+
+# Ignora la cache e i file compilati di Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# =========================
+# LATEX
+# =========================
+# Ignora tutti i file ausiliari generati dalla compilazione LaTeX
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.brf
+*.fdb_latexmk
+*.fls
+*.idx
+*.ilg
+*.ind
+*.lof
+*.log
+*.lot
+*.nav
+*.out
+*.run.xml
+*.snm
+*.synctex.gz
+*.toc
+*.vrb
+*.xdv
+
+# Se usate il pacchetto minted per il codice, crea questa cartella temporanea
+_minted-*/
+
+# OPZIONALE: Ignora i PDF generati (scommenta la riga sotto se non vuoi caricare il report compilato)
+# *.pdf
+
+# =========================
+# VS CODE & OS
+# =========================
+# Impostazioni locali dell'editor (opzionale, ma consigliato)
+.vscode/
+
+# File di sistema spazzatura (se il tuo compagno usa Mac o Windows)
+.DS_Store
+Thumbs.db
