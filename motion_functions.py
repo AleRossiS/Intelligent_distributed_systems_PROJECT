@@ -192,6 +192,104 @@ class MotionController:
         
         plt.legend()
         plt.show()
+
+    def inspection_control(self, robot_state, target_pos):
+        """
+        Attractive control to steer the robot towards the target obstacle.
+        The robot slows down as it approaches to carefully scan the area.
+        """
+        x, y, theta = robot_state
+        
+        # Calculate the direction vector towards the target
+        dir_x = target_pos[0] - x
+        dir_y = target_pos[1] - y
+        
+        # Calculate desired heading
+        target_theta = np.arctan2(dir_y, dir_x)
+        
+        # Calculate angular error and normalize to [-pi, pi]
+        angle_error = target_theta - theta
+        angle_error = (angle_error + np.pi) % (2 * np.pi) - np.pi
+        
+        # Proportional control for angular velocity
+        w = ANG_VEL_GAIN * angle_error
+        
+        # Linear velocity is zero if the robot needs to turn sharply
+        if abs(angle_error) > (np.pi / 4.0):
+            v = 0.0
+        else:
+            # Move forward slowly (50% of max speed) during inspection
+            v = LIN_VEL * 0.5 * np.cos(angle_error)
+            
+        return np.array([v, w])
+
+    def get_control(self, robot, dt, voronoi, treasure_pos=None):
+        """
+        Main interface for the Finite State Machine (FSM).
+        Calculates [v, w] based on the current robot state.
+        """
+        # 1. Extract current position as a Shapely Point to find distances
+        robot_pos = Point(robot.state[0], robot.state[1])
+
+        # 2. Find the closest point on the Voronoi boundary
+        closest_point_coords = voronoi.exterior.interpolate(voronoi.exterior.project(robot_pos))
+        closest_point = Point(closest_point_coords)
+        dist_to_boundary = robot_pos.distance(closest_point)
+
+        # --- SEARCHING STATE ---
+        if robot.state_mode == "SEARCHING":
+            # Check if we are close enough to an obstacle to start inspecting
+            # We trigger inspection slightly before the repulsive force gets too strong
+            INSPECTION_TRIGGER_DIST = cfg.SENSING_RANGE
+
+            if dist_to_boundary < INSPECTION_TRIGGER_DIST:
+
+                # 2. Check the Memory Bubbles (Spatial Blacklist)
+                is_already_inspected = False
+                IGNORE_RADIUS = cfg.SENSING_RANGE # Size of the memory bubble
+                target_arr = np.array([closest_point.x, closest_point.y])
+
+                # 3. If it's a new area, start inspection
+                if not is_already_inspected:
+                    robot.state_mode = "INSPECTING"
+                    robot.inspection_target = target_arr
+                    return np.array([0.0, 0.0]) # Stop to stabilize
+
+            # If no obstacle is near, continue normal Levy Flight
+            return self.levy_control(robot.state, dt, voronoi)
+            
+        # --- INSPECTING STATE --- 
+        elif robot.state_mode == "INSPECTING":
+            # Use an attractive control to reach the saved target
+            u = self.inspection_control(robot.state, robot.inspection_target)
+            
+            # Check if we reached the Bluetooth scanning distance
+            BLUETOOTH_RANGE = cfg.SENSING_RANGE * 0.5 
+            dist_to_target = np.linalg.norm(robot.state[:2] - robot.inspection_target)
+            
+            if dist_to_target < BLUETOOTH_RANGE:
+                # TODO: Check if the target is ACTUALLY the treasure!
+                
+                # For now, let's pretend we didn't find it, so we go back to searching
+                # 1. Save the location to the memory blacklist
+                robot.inspected_points.append(robot.inspection_target)
+
+                robot.state_mode = "SEARCHING"
+                robot.inspection_target = None
+
+                # 3. Important: Force a turn away from the obstacle so it doesn't get stuck
+                self.levy_theta = robot.state[2] + np.pi # Turn 180 degrees
+                self.time_remaining = MAX_TIME # Force a long walk away
+                
+            return u
+                    
+        elif robot.state_mode == "TREASURE_FOUND":
+            u = np.array([0.0, 0.0]) # Robot stops
+            
+        elif robot.state_mode == "JOINING":
+            u = self.go_to_goal_control(robot.state, robot.target_treasure_pos)
+            
+        return u
         
 
             

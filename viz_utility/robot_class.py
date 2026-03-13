@@ -15,6 +15,14 @@ class Robot:
     self.color = color
     self.history_x = [self.state[0]]
     self.history_y = [self.state[1]]
+
+    self.state_mode = "SEARCHING" # can be "SEARCHING", "INSPECTING", "TRASURE_FOUND", "JOINING"
+    self.found_treasure = False
+    self.target_treasure_pos = None
+
+    # Memory of false treasures [x, y]
+    self.inspected_points = [] 
+    self.inspection_target = None
     
   def update_pose(self, u, dt):
     """
