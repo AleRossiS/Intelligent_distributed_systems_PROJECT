@@ -1,0 +1,55 @@
+\documentclass[9pt,a4paper,twocolumn,twoside]{rho}
+
+% 1. IMPOSTAZIONI LINGUA E PACCHETTI EXTRA
+\usepackage[english]{babel} 
+\input{setup/packages}
+
+% 2. CONFIGURAZIONE IMMAGINI
+\graphicspath{{immagini/}}
+
+%----------------------------------------------------------
+% INTESTATZIONE
+%----------------------------------------------------------
+\doctype{Project Report}
+\title{Swarm Intelligence and Target Search using AoA and Voronoi}
+
+\author[{\textasteriskcentered},a,1]{Your Name}
+\author[{\textdagger},a,2]{Friend's Name}
+
+\affil[a]{University of ... - Course in Intelligent Distributed Systems}
+
+\dates{Compiled on \today}
+
+%\docinfo{Project report for the course of Intelligent Distributed Systems. The source code of the simulation is developed in Python.} 
+
+\journalname{IDS Project 2026}
+\journal{Prof. Name Surname}
+\theday{\today}
+\vol{1}
+\no{1}
+
+%----------------------------------------------------------
+% ABSTRACT
+%----------------------------------------------------------
+\begin{abstract}
+    \input{setup/abstract}
+\end{abstract}
+
+\keywords{Swarm Intelligence, Voronoi Cells, Lévy Flight, Angle of Arrival, Sensor Fusion}
+
+%----------------------------------------------------------
+% INIZIO DOCUMENTO
+%----------------------------------------------------------
+\begin{document}
+
+    \maketitle
+    \thispagestyle{firststyle} 
+
+    % CORPO DEL TESTO
+    \input{sezioni/01_introduzione}
+    \input{sezioni/02_modello_cinematico}
+
+    % BIBLIOGRAFIA
+    \printbibliography
+
+\end{document}
