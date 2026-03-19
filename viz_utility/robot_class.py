@@ -88,8 +88,17 @@ class Robot:
     # Label the robot with its ID
     ax.text(x, y + self.radius*1.2, f"R{self.robot_id}", ha='center')
     
-    # Plot robto trajectory
+    # Write robt ID and state mode above the robot
+    label = f"R{self.robot_id}\n[{self.state_mode}]"
+    ax.text(x, y + self.radius * 1.2, label, ha='center', va='bottom', fontsize=8, fontweight='bold', color='black')
+    
+    # Plot robot trajectory
     if show_history:
         ax.plot(self.history_x, self.history_y, color=self.color, linewidth=1.5, alpha=0.4, linestyle='-')
-    
+        
+    # Draw inspected points
+    if len(self.inspected_points) > 0:
+        pts = np.array(self.inspected_points)
+        ax.scatter(pts[:, 0], pts[:, 1], color=self.color, s=15, marker='x', alpha=0.8)
+
   
