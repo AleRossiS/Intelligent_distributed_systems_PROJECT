@@ -97,17 +97,17 @@ class MotionController:
             self.avoidance_dir = None # Reset the boundary avoidance direction when not near boundary anymore
         
         # 3. If no obtscle in the line of sight do Levy Control + Obstacles repulsion 
-            if self.time_remaining <= 0:
-                self.levy_theta = np.random.uniform(-np.pi, np.pi) # Random new direction
-                
-                #Sample from Levy dsitrib
-                raw_time = levy_stable.rvs(alpha=ALPHA,  # stability parameter (0 < alpha <= 2)
-                                        beta=BETA,     # skewness parameter (-1 <= beta <= 1)
-                                        loc=MIN_TIME, # location parameter
-                                        scale=SCALE)    # scale parameter (scale > 0)
-                
-                self.time_remaining = np.clip(abs(raw_time), MIN_TIME, MAX_TIME)  # Ensure time is within bounds
-                
+        if self.time_remaining <= 0:
+            self.levy_theta = np.random.uniform(-np.pi, np.pi) # Random new direction
+            
+            #Sample from Levy dsitrib
+            raw_time = levy_stable.rvs(alpha=ALPHA,  # stability parameter (0 < alpha <= 2)
+                                    beta=BETA,     # skewness parameter (-1 <= beta <= 1)
+                                    loc=MIN_TIME, # location parameter
+                                    scale=SCALE)    # scale parameter (scale > 0)
+            
+            self.time_remaining = np.clip(abs(raw_time), MIN_TIME, MAX_TIME)  # Ensure time is within bounds
+            
         # Obscale avoidance repulsive control and Levy Flight direction velocity vector
         v_rep = self.obstacle_avoidance_control(robot_state, voronoi) # repulsive vector 
         v_levy = np.array([np.cos(self.levy_theta), np.sin(self.levy_theta)]) # Levy vector 
@@ -222,6 +222,8 @@ class MotionController:
             v = LIN_VEL * 0.5 * np.cos(angle_error)
             
         return np.array([v, w])
+    
+    
 
     def get_control(self, robot, dt, voronoi, treasure_pos=None):
         """
@@ -238,16 +240,23 @@ class MotionController:
 
         # --- SEARCHING STATE ---
         if robot.state_mode == "SEARCHING":
+            print(f"Robot {robot.robot_id} is searching. Distance to boundary: {dist_to_boundary:.2f}")
+            
             # Check if we are close enough to an obstacle to start inspecting
-            # We trigger inspection slightly before the repulsive force gets too strong
             INSPECTION_TRIGGER_DIST = cfg.SENSING_RANGE
 
             if dist_to_boundary < INSPECTION_TRIGGER_DIST:
-
+                
                 # 2. Check the Memory Bubbles (Spatial Blacklist)
                 is_already_inspected = False
                 IGNORE_RADIUS = cfg.SENSING_RANGE # Size of the memory bubble
                 target_arr = np.array([closest_point.x, closest_point.y])
+
+                # --- FIX: Loop through memory to check if already visited ---
+                for pt in robot.inspected_points:
+                    if np.linalg.norm(target_arr - pt) < IGNORE_RADIUS:
+                        is_already_inspected = True
+                        break
 
                 # 3. If it's a new area, start inspection
                 if not is_already_inspected:
@@ -255,11 +264,12 @@ class MotionController:
                     robot.inspection_target = target_arr
                     return np.array([0.0, 0.0]) # Stop to stabilize
 
-            # If no obstacle is near, continue normal Levy Flight
+            # If no obstacle is near, or the obstacle is already known, continue normal Levy Flight
             return self.levy_control(robot.state, dt, voronoi)
             
         # --- INSPECTING STATE --- 
         elif robot.state_mode == "INSPECTING":
+            print(f"Robot {robot.robot_id} is inspecting at {robot.inspection_target}")
             # Use an attractive control to reach the saved target
             u = self.inspection_control(robot.state, robot.inspection_target)
             
@@ -283,13 +293,15 @@ class MotionController:
                 
             return u
                     
+        # --- TREASURE FOUND STATE ---
         elif robot.state_mode == "TREASURE_FOUND":
             u = np.array([0.0, 0.0]) # Robot stops
+            return u
             
+        # --- JOINING STATE ---
         elif robot.state_mode == "JOINING":
             u = self.go_to_goal_control(robot.state, robot.target_treasure_pos)
+            return u
             
-        return u
-        
-
-            
+        # Fallback (non dovrebbe mai arrivarci)
+        return np.array([0.0, 0.0])
