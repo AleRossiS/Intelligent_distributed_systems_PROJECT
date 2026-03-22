@@ -15,14 +15,15 @@ class Robot:
     self.color = color
     self.history_x = [self.state[0]]
     self.history_y = [self.state[1]]
+    self.other_robots_positions = {} # Dictionary to store positions of other robots {robot_id: (x, y)}
 
+    # State mode paraters
     self.state_mode = "SEARCHING" # can be "SEARCHING", "INSPECTING", "TRASURE_FOUND", "JOINING"
     self.found_treasure = False
     self.target_treasure_pos = None
 
-    # Memory of false treasures [x, y]
+    # Memory of inspected points 
     self.inspected_points = [] 
-    self.inspection_target = None
     
   def update_pose(self, u, dt):
     """
@@ -85,12 +86,9 @@ class Robot:
     front_y = y + self.radius * np.sin(theta)
     ax.plot([x, front_x], [y, front_y], color='black', linewidth=2)
     
-    # Label the robot with its ID
-    ax.text(x, y + self.radius*1.2, f"R{self.robot_id}", ha='center')
-    
     # Write robt ID and state mode above the robot
-    label = f"R{self.robot_id}\n[{self.state_mode}]"
-    ax.text(x, y + self.radius * 1.2, label, ha='center', va='bottom', fontsize=8, fontweight='bold', color='black')
+    label = f"R{self.robot_id}\n{self.state_mode}"
+    ax.text(x, y + self.radius * 1.4, label, ha='center', va='bottom', fontsize=8, color='black')
     
     # Plot robot trajectory
     if show_history:

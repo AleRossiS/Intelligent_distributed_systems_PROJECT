@@ -246,118 +246,193 @@ class MotionController:
         return np.array([v, w])
     
 
-    def get_control(self, robot, dt, voronoi, treasure_pos=None):
+    def get_control(self, robot, dt, voronoi, obstacles_list=[], treasure_pos=None):
         """
-        Main interface for the Finite State Machine (FSM).
+        Main interface for the Finite State Machine (FSM) that selects the appropriate control strategy.
         Calculates [v, w] control inputs based on the current robot state.
         
         Args:
             robot: The Robot object for which to compute the control.
             dt: Time step for control update.
             voronoi: The Voronoi cell (Shapely Polygon) associated with the robot.
-            treasure_pos: Optional [x, y] position of the treasure for TREASURE_FOUND state.
+            obstacles_list: List of physical obstacles in the environment (for LOS check).
+            treasure_pos: Optional (x, y) position of the treasure for TREASURE_FOUND state.
             
         Returns:
-            A numpy array [v, w] representing the linear and angular velocity commands depending on the state.
+            A numpy array [v, w] representing the linear and angular velocity commands.
         """
+        
+        ## Find the closest real obstacle points using the Voronoi, filters out shared boundaries with other robots ##
+        
         # 1. Extract current position
         robot_pos = Point(robot.state[0], robot.state[1])
         robot_pos_arr = np.array([robot.state[0], robot.state[1]])
 
-        # 2. Find the closest point on the Voronoi boundary (used for wall-following movement)
-        closest_point_coords = voronoi.exterior.interpolate(voronoi.exterior.project(robot_pos))
-        closest_point = Point(closest_point_coords)
-        dist_to_boundary = robot_pos.distance(closest_point)
-        target_arr = np.array([closest_point.x, closest_point.y])
-
-        # 3. Distance of all Voronoi boundary points to the robot
+        # 2. Compute the voronoi points distance to the robot
         voronoi_coords = np.array(voronoi.exterior.coords)
         distances_to_robot = np.linalg.norm(voronoi_coords - robot_pos_arr, axis=1)
         
-        # 4. Keep only the points that are within the LIDAR range (thus obstacles points)
+        # 3. Filter points: keep only REAL physical obstacles within LIDAR range
         LIDAR_HIT_THRESHOLD = cfg.SENSING_RANGE * 0.9
-        visible_hit_points = voronoi_coords[distances_to_robot < LIDAR_HIT_THRESHOLD]
-      
-        ## FINITE STATE MACHINE (FSM) ##
-        # --- SEARCHING STATE ---
-        if robot.state_mode == "SEARCHING":
-            # 1. Check if hit an obstacle to trigger inspection
-            if dist_to_boundary < LIDAR_HIT_THRESHOLD:
-                is_already_inspected = False
-                IGNORE_RADIUS_SEARCH = cfg.ROBOT_RADIUS * 1.2 
+        visible_hit_points = []
+        
+        for pt, dist_to_me in zip(voronoi_coords, distances_to_robot):
+            
+            # Check only points within sensing range (redundant but more safe)
+            if dist_to_me < LIDAR_HIT_THRESHOLD:
+                is_shared_boundary = False
                 
-                # 2. Check if the closest obstacle zone is already in memory
+                # Check against other robots' positions to filter out shared boundaries
+                for other_pos in robot.other_robots_positions.values():
+                    other_pos_arr = np.array(other_pos)
+                    dist_to_other = np.linalg.norm(pt - other_pos_arr)
+                    
+                    # Use Voronoi property: shared boundaries btwn robots are roughly equidistant to both robots
+                    if dist_to_other <= dist_to_me + 0.05:  # 0.05 float precision tolerance
+                        is_shared_boundary = True
+                        break
+                
+                # Add to obstacle map if it is not a shared boundary with another robot
+                if not is_shared_boundary:
+                    visible_hit_points.append(pt)
+                
+        visible_hit_points = np.array(visible_hit_points)
+
+        # 4. Find the closest real obstacle point, FOR WALL-FOLLOWING CONTROL
+        if len(visible_hit_points) > 0:
+            distances_to_real_obs = np.linalg.norm(visible_hit_points - robot_pos_arr, axis=1)
+            min_idx = np.argmin(distances_to_real_obs)
+            
+            target_arr = visible_hit_points[min_idx]
+            closest_point = Point(target_arr[0], target_arr[1])
+            dist_to_boundary = distances_to_real_obs[min_idx]
+        else:
+            # No real obstacles nearby
+            dist_to_boundary = float('inf')
+            closest_point = None
+            target_arr = None
+
+        # Radius to ignore already inspected points 
+        IGNORE_RADIUS_SEARCH = cfg.ROBOT_RADIUS * 1.2
+        
+    
+        ## ---------------- FINITE STATE MACHINE (FSM) ---------------- ##
+        
+        # --- TREASURE DETECTION (Global override if searching or inspecting) ---
+        if treasure_pos is not None and robot.state_mode in ["SEARCHING", "INSPECTING"]:
+            treasure_point = Point(treasure_pos[0], treasure_pos[1])
+            dist_to_treasure = robot_pos.distance(treasure_point)
+            
+            # Check if treasure is within detection range
+            if dist_to_treasure < cfg.BL_RANGE:
+                signal_line = LineString([robot_pos, treasure_point])
+                signal_blocked = False
+                
+                # Check Line-Of-Sight (LOS) against physical obstacles
+                for obs in obstacles_list:
+                    if obs != treasure_pos and signal_line.intersects(obs):
+                        signal_blocked = True
+                        break
+                        
+                # Transition to TREASURE_FOUND if the signal is clear
+                if not signal_blocked:
+                    print(f"Robot {robot.robot_id} found the treasure!")
+                    robot.state_mode = "TREASURE_FOUND"
+                    robot.found_treasure = True
+                    robot.target_treasure_pos = np.array([treasure_point.x, treasure_point.y])
+                    robot.inspected_points = [] # Clear memory
+                    return np.array([0.0, 0.0])
+                    
+        # --- 1. SEARCHING STATE ---
+        if robot.state_mode == "SEARCHING":
+            
+            # Check if a real obstacle is hit
+            if dist_to_boundary < LIDAR_HIT_THRESHOLD and target_arr is not None:
+                is_already_inspected = False
+                
+                # Check if the closest obstacle area has already been mapped
                 for pt in robot.inspected_points:
                     if np.linalg.norm(target_arr - pt) < IGNORE_RADIUS_SEARCH:
                         is_already_inspected = True
                         break
 
-                # 3. If it's a new obstacle, start mapping
+                # Start mapping if it's a new, unexplored obstacle
                 if not is_already_inspected:
                     robot.state_mode = "INSPECTING"
                     
-                    # Store the new obstacles points in memory 
+                    # Store visible obstacle points into the robot's memory
                     for pt in visible_hit_points:
                         robot.inspected_points.append(pt)
                         
-                    return np.array([0.0, 0.0]) # Stop to stabilize
+                    return np.array([0.0, 0.0]) # Stop to stabilize before wall-following
 
-            # Continue normal Levy Flight control if no obstacle in sight
+            # Default behavior: Levy flight exploration with Voronoi obstacle avoidance
             return self.levy_control(robot.state, dt, voronoi)
-            
-            
-        # --- INSPECTING STATE (Mapping Mode) --- 
+                
+        # --- 2. INSPECTING STATE (Mapping Mode) --- 
         elif robot.state_mode == "INSPECTING":
             
-            # 1. Store new visible obstacles points in memory 
-            for new_pt in visible_hit_points:
-                is_duplicate = False
-                
-                # Check if the new point is already in memory (within a certain radius) to avoid duplicates
-                for saved_pt in robot.inspected_points[-30:]:  # Check only the last 30 points for efficiency
-                   
-                    # If the new point is very close to an already stored point, consider it a duplicate
-                    if np.linalg.norm(new_pt - saved_pt) < cfg.ROBOT_RADIUS * 0.5:
-                        is_duplicate = True
-                        break
-                # If it's not a duplicate, add it to the memory of inspected points
-                if not is_duplicate:
-                    robot.inspected_points.append(new_pt)
+            # Store new visible obstacle points
+            if len(visible_hit_points) > 0:
+                for new_pt in visible_hit_points:
+                    is_duplicate = False
+                    
+                    # Check recent history to prevent duplicate points
+                    for saved_pt in robot.inspected_points[-30:]:
+                        if np.linalg.norm(new_pt - saved_pt) < cfg.ROBOT_RADIUS * 0.5:
+                            is_duplicate = True
+                            break
+                            
+                    if not is_duplicate:
+                        robot.inspected_points.append(new_pt)
             
-            # 2. Check for loop closure (if we reached an already mapped area)
+            # Check for loop closure (robot has mapped the entire obstacle)
             loop_closed = False
             IGNORE_RADIUS_LOOP = cfg.ROBOT_RADIUS * 1.5 
             
-            # Exclude recently mapped points (e.g., last 100) to avoid immediate closure
+            # Exclude recently mapped points to prevent immediate false closure
             safe_history_index = len(robot.inspected_points) - 50
             
-            # If the robot close to a previously mapped point can consider the loop closed and the mapping finished 
-            if safe_history_index > 0:
+            if safe_history_index > 0 and target_arr is not None:
                 for pt in robot.inspected_points[:safe_history_index]:
                     if np.linalg.norm(target_arr - pt) < IGNORE_RADIUS_LOOP:
                         loop_closed = True
                         break
+
+            # Robot collision avoidance during inspection
+            too_close_to_friend = False
+            CRITICAL_DISTANCE = cfg.ROBOT_RADIUS * 3.5 # Safety margin
             
-            # 3. Handle state transitions
-            if loop_closed:
+            # Check distance to all other robots
+            for other_pos in robot.other_robots_positions.values():
+                if np.linalg.norm(robot_pos_arr - np.array(other_pos)) < CRITICAL_DISTANCE:
+                    too_close_to_friend = True
+                    break
+
+            # Handle state transitions based on mapping progress or collisions risk
+            if loop_closed or too_close_to_friend:
                 robot.state_mode = "SEARCHING"
-                
-                # Turn 180 degrees to walk away from the obstacle
+                # Turn 180 degrees to walk away from the obstacle/robot
                 self.levy_theta = robot.state[2] + np.pi 
                 self.time_remaining = MAX_TIME 
-                
                 return np.array([0.0, 0.0]) # Stop while turning
                 
             else:
-                # Keep sliding along the wall
-                return self.wall_following_control(robot.state, closest_point)
-                    
-        # --- TREASURE FOUND STATE ---
+                # Keep sliding along the wall if a physical boundary is still visible
+                if closest_point is not None:
+                    return self.wall_following_control(robot.state, closest_point)
+                else:
+                    # Lost track of the physical wall, resume Levy exploration
+                    robot.state_mode = "SEARCHING"
+                    return np.array([0.0, 0.0])
+                            
+        # --- 3. TREASURE FOUND STATE ---
         elif robot.state_mode == "TREASURE_FOUND":
-            return np.array([0.0, 0.0]) # Stop
-            
-        # --- JOINING STATE ---
+            return np.array([0.0, 0.0]) # Stop moving and broadcast signal
+                
+        # --- 4. JOINING STATE ---
         elif robot.state_mode == "JOINING":
+            # Steer towards the treasure coordinates broadcasted by another robot
             return self.go_to_goal_control(robot.state, robot.target_treasure_pos)
-            
-        return np.array([0.0, 0.0]) # Fallback
+                
+        return np.array([0.0, 0.0]) # Safety Fallback
