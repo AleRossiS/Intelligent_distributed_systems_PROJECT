@@ -9,20 +9,26 @@ class Robot:
   """ 
   
   def __init__(self, robot_id, x = 0.0, y = 0.0, theta = 0.0, radius = cfg.ROBOT_RADIUS, color = 'blue'):
+    
+    # Robot attributes
     self.robot_id = robot_id
     self.state = np.array([x, y, theta], dtype=float) # [x, y, theta]
     self.radius = radius
     self.color = color
+    
+    # Robot trajectory history for visualization
     self.history_x = [self.state[0]]
     self.history_y = [self.state[1]]
+    
     self.other_robots_positions = {} # Dictionary to store positions of other robots {robot_id: (x, y)}
+    self.id_to_call = None # ID of the robot to call for help when treasure is found
 
     # State mode paraters
     self.state_mode = "SEARCHING" # can be "SEARCHING", "INSPECTING", "TRASURE_FOUND", "JOINING"
     self.found_treasure = False
     self.target_treasure_pos = None
 
-    # Memory of inspected points 
+    # Memory of inspected points for mapping and visualization
     self.inspected_points = [] 
     
   def update_pose(self, u, dt):

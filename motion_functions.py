@@ -328,19 +328,38 @@ class MotionController:
                 signal_line = LineString([robot_pos, treasure_point])
                 signal_blocked = False
                 
-                # Check Line-Of-Sight (LOS) against physical obstacles
+                # Check Line-Of-Sight against physical obstacles
                 for obs in obstacles_list:
-                    if obs != treasure_pos and signal_line.intersects(obs):
+                    
+                    # The treasure is treated as an obstacle in the implementation, so i have to exclude it now
+                    if obs.contains(treasure_point) or obs.distance(treasure_point) < 0.1:
+                        continue
+                    
+                    # If the signal line intersects any obstacle, the treasure can't be detected
+                    if signal_line.intersects(obs):
                         signal_blocked = True
                         break
                         
-                # Transition to TREASURE_FOUND if the signal is clear
+                # Transition to TREASURE_FOUND if the signal is clear (means the robot can see the treasure without obstacles in between)
                 if not signal_blocked:
                     print(f"Robot {robot.robot_id} found the treasure!")
                     robot.state_mode = "TREASURE_FOUND"
                     robot.found_treasure = True
                     robot.target_treasure_pos = np.array([treasure_point.x, treasure_point.y])
                     robot.inspected_points = [] # Clear memory
+                    
+                    # If treasure is found, identify the closest robot to call to join (if any)
+                    closest_id = None
+                    min_dist = float('inf')
+                    
+                    for other_id, other_pos in robot.other_robots_positions.items():
+                        dist_to_other = np.linalg.norm(robot_pos_arr - np.array(other_pos))
+                        if dist_to_other < min_dist:
+                            min_dist = dist_to_other
+                            closest_id = other_id
+                            
+                    # Save the ID of the closest robot to call for joining (in the robot boject)
+                    robot.id_to_call = closest_id
                     return np.array([0.0, 0.0])
                     
         # --- 1. SEARCHING STATE ---
@@ -433,6 +452,7 @@ class MotionController:
         # --- 4. JOINING STATE ---
         elif robot.state_mode == "JOINING":
             # Steer towards the treasure coordinates broadcasted by another robot
-            return self.go_to_goal_control(robot.state, robot.target_treasure_pos)
+            #return self.go_to_goal_control(robot.state, robot.target_treasure_pos)
+            return np.array([0.0, 0.0])
                 
         return np.array([0.0, 0.0]) # Safety Fallback
