@@ -51,9 +51,10 @@ env.add_target_object(cx=treasure_pos[0], cy=treasure_pos[1])
 
 obstacles_list = env.get_obstacle_polygons()
 
-# Creiamo i robot e li aggiungiamo all'ambiente
-r1 = Robot(1, x=-3, y=3, color='tab:red')
-r2 = Robot(2, x=-2.2, y=1.5, color='tab:blue')
+# SETUP PER IL TEST: 
+# r1 parte vicinissimo al tesoro, r2 parte più lontano
+r1 = Robot(1, x=-1.0, y=3.0, color='tab:red')
+r2 = Robot(2, x=0.0, y=1.0, color='tab:blue')
 
 env.add_robot(r1)
 env.add_robot(r2)
@@ -103,8 +104,12 @@ for i in range(20000):
             for compagno in env.robots:
                 if compagno.robot_id == id_chiamato:
                     compagno.state_mode = "JOINING"
+                    
+                    # MODIFICA CHIAVE: Il compagno deve andare al punto di ancoraggio P1, non addosso al Robot 1!
+                    compagno.rendezvous_pos = current_robot.rendezvous_pos # Il compagno va al punto di ancoraggio P1, non addosso al Robot 1!
+                    
                     compagno.target_treasure_pos = current_robot.target_treasure_pos
-                    print(f"[COMUNICAZIONE] Robot {current_robot.robot_id} ha chiamato Robot {compagno.robot_id} in aiuto!")
+                    print(f"[COMUNICAZIONE] Robot {current_robot.robot_id} ha chiamato Robot {compagno.robot_id} in aiuto sul punto originale!")
             
             # Abbassiamo il flag per evitare che lo chiami all'infinito a ogni ciclo
             current_robot.id_to_call = None
@@ -124,6 +129,10 @@ for i in range(20000):
     # 7. MANTENIAMO FISSI I LIMITI DELLA TELECAMERA
     ax.set_xlim(cfg.X_LIM) 
     ax.set_ylim(cfg.Y_LIM)
+
+    # Stampa di debug per capire cosa stanno facendo i robot
+    if i % 20 == 0:
+        print(f"Step {i} | R1: {r1.state_mode} | R2: {r2.state_mode}")
 
     # 8. AGGIORNIAMO IL GRAFICO
     plt.pause(0.005) 

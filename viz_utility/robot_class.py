@@ -22,6 +22,9 @@ class Robot:
     
     self.other_robots_positions = {} # Dictionary to store positions of other robots {robot_id: (x, y)}
     self.id_to_call = None # ID of the robot to call for help when treasure is found
+    self.rendezvous_pos = None # Position where the robot will meet others
+    self.is_finder = False # Flag to indicate if this robot is the one that found the treasure
+    self.relocation_done = False # Flag to indicate if the robot has already relocated to P1 after finding the treasure
 
     # State mode paraters
     self.state_mode = "SEARCHING" # can be "SEARCHING", "INSPECTING", "TRASURE_FOUND", "JOINING"
