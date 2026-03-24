@@ -10,9 +10,12 @@ SENSING_RANGE = 3.0
 ROBOT_RADIUS = 0.5
 OBS_INFLATION_RADIUS = 0.5 # should be = ROBOT_RADIUS to ensure safety
 DIST_BTW_ROBOTS = 0.1 # Minimum distance to maintain between robots to avoid collisions
-BL_RANGE = SENSING_RANGE * 0.8  # radius of the sensing range for the treasure detecting
+BL_RANGE = SENSING_RANGE * 0.2  # radius of the sensing range for the treasure detecting
+TX_INTERVAL_TICKS = 10 # Number of simulation steps between each broadcast opportunity for the robots
 
+# --- MAPPING SETTINGS ---
+MAP_RESOLUTION =ROBOT_RADIUS * 0.5 # Distance between points in the generated map
 
 # --- RAY CASTING SETTINGS ---
-# NB if this vaule is too small, the simulation will lag a bit
+# NB if this value is too small, the simulation will lag a bit
 RAY_CASTING_RESOLUTION = 10.0 # degrees between rays 

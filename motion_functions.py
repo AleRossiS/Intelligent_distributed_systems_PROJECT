@@ -379,11 +379,7 @@ class MotionController:
         else:
             dist_to_boundary = float('inf') # Fallback if no real obstacles are visible
             closest_point = None
-            target_arr = None
-
-        # Constant used to ignore points that are too close to already inspected ones during the SEARCHING state
-        IGNORE_RADIUS_SEARCH = cfg.ROBOT_RADIUS * 1.2
-        
+            target_arr = None        
     
         ## ---------------- FINITE STATE MACHINE (FSM) ---------------- ##
         
@@ -393,7 +389,7 @@ class MotionController:
             dist_to_treasure = robot_pos.distance(treasure_point)
             
             # Check if the robot is within the detection range of the treasure
-            if dist_to_treasure < cfg.BL_RANGE:
+            if dist_to_treasure < cfg.BL_RANGE * 0.9: # 0.9 is a safety factor 
                 signal_line = LineString([robot_pos, treasure_point]) # Line of sight between the robot and the treasure
                 signal_blocked = False # Initialize flag to check if the line of sight is blocked by obstacles
                 
@@ -425,7 +421,7 @@ class MotionController:
                 is_already_inspected = False
                 
                 for pt in robot.inspected_points:
-                    if np.linalg.norm(target_arr - pt) < IGNORE_RADIUS_SEARCH:
+                    if np.linalg.norm(target_arr - pt) < cfg.MAP_RESOLUTION:
                         is_already_inspected = True
                         break # If the point is already inspected, we don't want to switch to INSPECTING state again 
                 
@@ -434,9 +430,20 @@ class MotionController:
                     robot.state_mode = "INSPECTING"
                     
                     for pt in visible_hit_points:
-                        robot.inspected_points.append(pt) # Add currently visible points to the inspected points array
+                        is_duplicate = False
                         
-                    return np.array([0.0, 0.0]) # Stop to stabilize
+                        # Check if the new point is too close to already inspected points to avoid too colse points
+                        for saved_pt in robot.inspected_points[-30:]:  # Only check most recent 30 points (mem saving)
+                            if np.linalg.norm(pt - saved_pt) < cfg.MAP_RESOLUTION:
+                                is_duplicate = True
+                                break
+                        
+                        # If the point is not a duplicate add to the inspected points and update the shared map        
+                        if not is_duplicate:
+                            robot.inspected_points.append(pt) 
+                            robot.update_shared_map([pt])
+                            
+                    return np.array([0.0, 0.0]) # Stop to stabilizee
 
             # Default: Levy flight exploration, if no new real obstacles are detected in the line of sight
             return self.levy_control(robot.state, dt, voronoi, min_time=MIN_TIME_EXPLOR, max_time=MAX_TIME_EXPLOR)
@@ -452,12 +459,14 @@ class MotionController:
                     
                     # Check if the new point is too close to already inspected points to avoid duplicates in the memory
                     for saved_pt in robot.inspected_points[-30:]: # Only check the most recent 30 points to save time
-                        if np.linalg.norm(new_pt - saved_pt) < cfg.ROBOT_RADIUS * 0.5:
+                        if np.linalg.norm(new_pt - saved_pt) < cfg.MAP_RESOLUTION:
                             is_duplicate = True
                             break
                             
                     if not is_duplicate:
+                        # If the point is not a duplicate, add it to the inspected points and update the shared map
                         robot.inspected_points.append(new_pt)
+                        robot.update_shared_map([new_pt])
             
             # Check for loop closure
             loop_closed = False
