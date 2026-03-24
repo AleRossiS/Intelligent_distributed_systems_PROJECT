@@ -408,7 +408,6 @@ class MotionController:
                     robot.state_mode = "TREASURE_FOUND"
                     robot.found_treasure = True
                     robot.target_treasure_pos = np.array([treasure_point.x, treasure_point.y])
-                    robot.inspected_points = [] # Clear memory
                     
                     return np.array([0.0, 0.0])
                 
@@ -420,7 +419,7 @@ class MotionController:
             if dist_to_boundary < LIDAR_HIT_THRESHOLD and target_arr is not None:
                 is_already_inspected = False
                 
-                for pt in robot.inspected_points:
+                for pt in robot.shared_map:
                     if np.linalg.norm(target_arr - pt) < cfg.MAP_RESOLUTION:
                         is_already_inspected = True
                         break # If the point is already inspected, we don't want to switch to INSPECTING state again 
@@ -471,10 +470,10 @@ class MotionController:
             # Check for loop closure
             loop_closed = False
             IGNORE_RADIUS_LOOP = cfg.ROBOT_RADIUS * 1.5 
-            safe_history_index = len(robot.inspected_points) - 50 # Only check for loop closure with points that are at least 50 steps old to avoid false positives with current mapping area
+            safe_history_index = len(robot.shared_map) - 50 # Only check for loop closure with points that are at least 50 steps old to avoid false positives with current mapping area
             
             if safe_history_index > 0 and target_arr is not None:
-                for pt in robot.inspected_points[:safe_history_index]:
+                for pt in robot.shared_map[:safe_history_index]:
                     if np.linalg.norm(target_arr - pt) < IGNORE_RADIUS_LOOP:
                         loop_closed = True # Set flag to true if the robot is mapping an already well mapped area
                         break 
