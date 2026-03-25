@@ -213,7 +213,7 @@ class Environment:
     # Draw Robots
     for r in self.robots:
       r.draw(ax)
-      
+
     # Draw Target Object
     if self.target_object is not None:
         # Vertices coordinates of the target object polygon
