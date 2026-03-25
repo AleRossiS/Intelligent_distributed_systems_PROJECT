@@ -13,7 +13,7 @@ plt.close('all')
 # Inizializzazione
 env = Environment()
 env.add_walls()
-env.add_obstacle([(2, 0), (4, 0), (4, 2), (2, 2)])
+#env.add_obstacle([(2, 0), (4, 0), (4, 2), (2, 2)])
 env.add_obstacle([(-6, -3), (-2, -3), (-2, -2.5), (-6, -2.5)])
 env.add_obstacle([
     # --- BRACCIO SUPERIORE ESTERNO ---
@@ -50,16 +50,20 @@ obstacles_list = env.get_obstacle_polygons()
 # SETUP PER IL TEST: 
 r1 = Robot(robot_id=1, x=-1.0, y=3.0, color='tab:red')
 r2 = Robot(robot_id=2, x=0.0, y=1.0, color='tab:blue')
+r3 = Robot(robot_id=3, x=-2.0, y=4.0, color='tab:green') 
 
 env.add_robot(r1)
 env.add_robot(r2)
+env.add_robot(r3)
 
 # Inizializziamo il gestore di Voronoi
 vor_r1 = VoronoiCell()
 vor_r2 = VoronoiCell()
+vor_r3 = VoronoiCell()
 
 ctrl1 = MotionController()
 ctrl2 = MotionController()
+ctrl3 = MotionController()
 
 dt = 0.1 # Step temporale
 
@@ -88,13 +92,21 @@ for i in range(20000):
         pos_r2.append(other_pos)
     pos_r2 = np.array(pos_r2)
     
+        # Costruiamo la percezione del mondo per R2
+    pos_r3 = [r3.state[:2]] # R3 mette se stesso al primo posto (indice 0)
+    for other_pos in r3.other_robots_positions.values():
+        pos_r3.append(other_pos)
+    pos_r3 = np.array(pos_r3)
+    
     # Calcolo Voronoi (notare che robot_index è diventato 0 per entrambi!)
     cella1, centroid1 = vor_r1.compute_and_clip(pos_r1, robot_index=0, obstacles=obstacles_list) 
     cella2, centroid2 = vor_r2.compute_and_clip(pos_r2, robot_index=0, obstacles=obstacles_list) 
+    cella3, centroid3 = vor_r3.compute_and_clip(pos_r3, robot_index=0, obstacles=obstacles_list) 
     
     # 3. CALCOLIAMO I COMANDI DI CONTROLLO
     u1 = ctrl1.get_control(r1, dt=0.1, voronoi=cella1[0], obstacles_list=obstacles_list, treasure_pos=treasure_pos) 
     u2 = ctrl2.get_control(r2, dt=0.1, voronoi=cella2[0], obstacles_list=obstacles_list, treasure_pos=treasure_pos) 
+    u3 = ctrl3.get_control(r3, dt=0.1, voronoi=cella3[0], obstacles_list=obstacles_list, treasure_pos=treasure_pos) 
 
 
     # LOGICA DI COMUNICAZIONE ASINCRONA (MAPPA E POSIZIONI)
@@ -108,30 +120,34 @@ for i in range(20000):
             r.is_transmitting = False # (O la logica di decremento se hai le onde)
 
 
-    # LOGICA DI COMUNICAZIONE RADIO (RICHIESTA AIUTO)
+    # LOGICA DI COMUNICAZIONE RADIO (RICHIESTA AIUTO A TUTTI)
     for current_robot in env.robots:
-        id_chiamato = getattr(current_robot, 'id_to_call', None)
-        
-        if id_chiamato is not None:
-            for compagno in env.robots:
-                if compagno.robot_id == id_chiamato:
-                    compagno.state_mode = "JOINING"
-                    compagno.rendezvous_pos = current_robot.rendezvous_pos 
-                    compagno.target_treasure_pos = current_robot.target_treasure_pos
-                    print(f"[COMUNICAZIONE] Robot {current_robot.robot_id} ha chiamato Robot {compagno.robot_id} in aiuto sul punto originale!")
+        # Se il robot ha attivato la richiesta di aiuto generale
+        if getattr(current_robot, 'call_all_for_help', False):
             
-            current_robot.id_to_call = None
+            for compagno in env.robots:
+                # Chiama TUTTI gli altri robot (tranne se stesso)
+                if compagno.robot_id != current_robot.robot_id:
+                    # Se il compagno non sa ancora del tesoro, cambiamogli stato
+                    if compagno.state_mode not in ["TREASURE_FOUND", "JOINING"]:
+                        compagno.state_mode = "JOINING"
+                        compagno.target_treasure_pos = current_robot.target_treasure_pos
+                        print(f"[COMUNICAZIONE] Robot {current_robot.robot_id} ha chiamato Robot {compagno.robot_id} in aiuto in formazione!")
+            
+            # Spegne la radio dopo aver trasmesso a tutti
+            current_robot.call_all_for_help = False
 
     # 4. AGGIORNO LA POSIZIONE DEI ROBOT
     r1.update_pose(u1, dt)
     r2.update_pose(u2, dt)
-    
+    r3.update_pose(u3, dt)
     # 5. DISEGNIAMO AMBIENTE E ROBOT
     env.render(ax)
     
     # 6. DISEGNIAMO LE NUOVE CELLE DI VORONOI E I CENTROIDI
     vor_r1.plot_cells(ax, polygons=cella1, centroids=centroid1, cell_color='#ffffcc')
     vor_r2.plot_cells(ax, polygons=cella2, centroids=centroid2, cell_color='#ffffcc')
+    vor_r3.plot_cells(ax, polygons=cella3, centroids=centroid3, cell_color='#ffffcc')
 
     # 7. MANTENIAMO FISSI I LIMITI DELLA TELECAMERA
     ax.set_xlim(cfg.X_LIM) 
@@ -139,7 +155,7 @@ for i in range(20000):
 
     # Stampa di debug
     if i % 20 == 0:
-        print(f"Step {i} | R1: {r1.state_mode} | R2: {r2.state_mode}")
+        print(f"Step {i} | R1: {r1.state_mode} | R2: {r2.state_mode} | R3: {r3.state_mode}")
 
     # 8. AGGIORNIAMO IL GRAFICO
     plt.pause(0.005) 

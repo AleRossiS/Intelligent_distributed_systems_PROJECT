@@ -251,52 +251,58 @@ class MotionController:
         return np.array([v, w])
     
     
-    def go_to_goal_control(self, robot_state, goal_pos, voronoi):
+    def formation_loyd_control(self, robot_state, goal_pos, voronoi, ring_radius=0.0):
         """
         Guides the robot towards the goal using a Lloyd-based control algorithm.
-        Calculates the centroid of the Voronoi cell weighted by a Gaussian PDF centered on the goal.
-        Uses an adaptive standard deviation based on distance to prevent vanishing gradients.
+        If ring_radius > 0, uses a ring-shaped Gaussian PDF to form a circular formation, if = 0, uses a standard
+        Gaussian PDF that guides the robot to the goal position.
         
         Args:
             robot_state: A numpy array or list containing the robot's current [x, y, theta].
-            goal_pos: A tuple (x, y) representing the goal position.
-            voronoi: A Shapely Polygon representing the Voronoi cell of the robot.
+            goal_pos: A tuple (goal_x, goal_y) representing the target position to reach.
+            voronoi: A Shapely Polygon representing the robot's assigned Voronoi cell.
+            ring_radius: If > 0, the radius of the ring-shaped PDF for circular formation control. 
+            If = 0, standard Gaussian is used.
             
         Returns:
-            A numpy array [v, w] representing the linear and angular velocity commands.
+            A numpy array [v, w] representing the linear and angular velocity commands for formation control.
         """
+        
         x, y, theta = robot_state
         goal_x, goal_y = goal_pos[0], goal_pos[1]
         
-        # 1. Voronoi cell discretization (creating a local grid) for numerical integration of the weighted centroid
+        # 1. Voronoi cell discretization
         minx, miny, maxx, maxy = voronoi.bounds
-        grid_res = 15j # A way to specify the number of points in the grid (15x15) with complex numbers in np.mgrid
+        grid_res = 15j 
         grid_x, grid_y = np.mgrid[minx:maxx:grid_res, miny:maxy:grid_res]
-        points = np.vstack((grid_x.flatten(), grid_y.flatten())).T # Create a list of points of the grid
+        points = np.vstack((grid_x.flatten(), grid_y.flatten())).T 
         
-        # 2. Filter only the points that are INSIDE the Voronoi polygon
+        # 2. Keep the points of the grid defined above that are inside the Voronoi cell
         poly_path = Path(list(voronoi.exterior.coords))
         inside_mask = poly_path.contains_points(points)
         valid_points = points[inside_mask]
         
-        # Distance of the robot to the goal (used for adaptive sigma calculation)
-        dist_to_goal = np.hypot(goal_x - x, goal_y - y) # Euclidean distance 
+        dist_to_goal = np.hypot(goal_x - x, goal_y - y) 
         
-        # Safety fallback
+        # Fallback
         if len(valid_points) == 0:
             cx, cy = voronoi.centroid.x, voronoi.centroid.y
             
         else:
-            # 3. Adaptive sigma calculation: increases with distance to the goal 
+            # 3. Adaptive sigma calculation
             sigma_0 = 0.5 
-            R = 5.0        
+            R_ad = 5.0        
+            sigma_adaptive = sigma_0 * (1.0 + (dist_to_goal / R_ad))
             
-            # Formula: sigma = sigma_0 * (1 + d / R)
-            sigma_adaptive = sigma_0 * (1.0 + (dist_to_goal / R))
+            # 4. Weight calculation 
+            dists_to_goal_grid = np.hypot(valid_points[:, 0] - goal_x, valid_points[:, 1] - goal_y)
             
-            # 4. Weight calculation based on the adaptive Gaussian PDF
-            dists_sq = (valid_points[:, 0] - goal_x)**2 + (valid_points[:, 1] - goal_y)**2
-            weights = np.exp(-dists_sq / (2 * sigma_adaptive**2))
+            if ring_radius > 0.0:
+                # Ring PDF
+                weights = np.exp(-(dists_to_goal_grid - ring_radius)**2 / (2 * sigma_adaptive**2))
+            else:
+                # Gaussian PDF
+                weights = np.exp(-(dists_to_goal_grid)**2 / (2 * sigma_adaptive**2))
             
             # 5. Weighted Centroid calculation
             weight_sum = np.sum(weights)
@@ -304,19 +310,23 @@ class MotionController:
                 cx = np.sum(valid_points[:, 0] * weights) / weight_sum
                 cy = np.sum(valid_points[:, 1] * weights) / weight_sum
             else:
-                cx, cy = voronoi.centroid.x, voronoi.centroid.y # Fallback
+                cx, cy = voronoi.centroid.x, voronoi.centroid.y 
+          
+        # Compute distance to the centroid       
+        dist_to_centroid = np.hypot(cx - x, cy - y)
+        
+        # If near the centroid stop, to avoid oscillations 
+        if dist_to_centroid < 0.05:
+            return np.array([0.0, 0.0])
                 
-        # 6. Unicycle commands [v, w] generation towards the weighted centroid
+        # 6. Unicycle commands [v, w]
         target_theta = np.arctan2(cy - y, cx - x)
         angle_error = (target_theta - theta + np.pi) % (2 * np.pi) - np.pi
         
         w = ANG_VEL_GAIN * angle_error
-        
-        # Smoothly modulate linear velocity based on the angle error 
-        v = LIN_VEL * max(0.0, np.cos(angle_error)**3) # The **3 allows good control 
+        v = LIN_VEL * max(0.0, np.cos(angle_error)**3) 
             
         return np.array([v, w])
-    
     
 
     def get_control(self, robot, dt, voronoi, obstacles_list=[], treasure_pos=None):
@@ -409,7 +419,11 @@ class MotionController:
                     robot.found_treasure = True
                     robot.target_treasure_pos = np.array([treasure_point.x, treasure_point.y])
                     
-                    return np.array([0.0, 0.0])
+                    # NUOVO: Imposta i flag per chiamare tutti gli altri robot
+                    robot.is_finder = True
+                    robot.has_called_help = False 
+                    
+                    return np.array([0.0, 0.0]) # Stop to stabilize
                 
                     
         # --- 1. SEARCHING STATE ---
@@ -505,86 +519,14 @@ class MotionController:
                 
                             
         # --- 3. TREASURE FOUND STATE ---
-        elif robot.state_mode == "TREASURE_FOUND":
+        elif robot.state_mode in "TREASURE_FOUND":
             
-            # 1. Initialization
-            # This if means that the robot has just entered the TREASURE_FOUND state
-            if robot.rendezvous_pos is None:
-                robot.rendezvous_pos = np.copy(robot.state[:2]) # Save point where the robot found the treasure 
-                                                                # (current pos because the robot stopped) 
-                robot.is_finder = True  # Set the flag to indicate that this robot is the finder of the treasure
-                robot.relocation_done = False # Initialize the relocation flag 
-            
-            # 2. Finder behavior
-            if getattr(robot, 'is_finder', False): # = If this robot is the finder
+            # If this robot is the finder and hasn't called for help yet
+            if getattr(robot, 'is_finder', False) and not getattr(robot, 'has_called_help', False):
+                robot.call_all_for_help = True # Set flag to trigger broadcast to ALL robots
+                robot.has_called_help = True   # Mark as called so it doesn't spam the call
                 
-                # Check if the treasure is still visible and if the signal is not blocked by obstacles
-                treasure_point = Point(treasure_pos[0], treasure_pos[1])
-                robot_point = Point(robot.state[0], robot.state[1])
-                dist_to_treasure = robot_point.distance(treasure_point)
-                
-                signal_blocked = False
-                signal_line = LineString([robot_point, treasure_point])
-                for obs in obstacles_list:
-                    if obs.contains(treasure_point) or obs.distance(treasure_point) < 0.1:
-                        continue
-                    if signal_line.intersects(obs):
-                        signal_blocked = True
-                        break
-                        
-                SAFE_BL_RANGE = cfg.BL_RANGE # Safety margin
-                
-                # If the treasure signal is lost or the signal is blocked, go to the rendezvous point 
-                if signal_blocked or dist_to_treasure > SAFE_BL_RANGE:
-                    return self.go_to_goal_control(robot.state, robot.rendezvous_pos, voronoi)
-                
-                # Check distance from rendezvous point
-                dist_from_rendezvous = np.linalg.norm(robot.state[:2] - robot.rendezvous_pos)
-                
-                # When the robot is far enough from the rendezvous point, it has finished the relocation phase
-                if dist_from_rendezvous >= 1.5 and not robot.relocation_done: 
-                    robot.relocation_done = True
-                    
-                    # Call the closest robot
-                    closest_id = None
-                    min_dist = float('inf')
-                    robot_pos_arr = np.array(robot.state[:2])
-                    
-                    # Find the closest robot to call
-                    for other_id, other_pos in robot.other_robots_positions.items():
-                        dist_to_other = np.linalg.norm(robot_pos_arr - np.array(other_pos))
-                        if dist_to_other < min_dist:
-                            min_dist = dist_to_other
-                            closest_id = other_id
-                            
-                    robot.id_to_call = closest_id
-                    print(f"Robot {robot.robot_id} finished relocation and called for help!")
-                    
-                # If the robot still in the relocation phase do levy exploration untill far enough from the rendezvous 
-                if not robot.relocation_done:
-                    # Explore safely near the treasure
-                    return self.levy_control(robot.state, dt, voronoi, min_time=MIN_TIME_TREAS, max_time=MAX_TIME_TREAS) 
-                else:
-                    return np.array([0.0, 0.0]) # Goal reached
-                    
-            # 3. Joining behavior for the robots that are called, when they arrive at the rendezvous point they stop
-            else:
-                return np.array([0.0, 0.0])
-            
-                    
-        # --- 4. JOINING STATE ---
-        elif robot.state_mode == "JOINING":
-            
-            robot_pos_arr = np.array(robot.state[:2])
-            dist_to_rendezvous = np.linalg.norm(robot.rendezvous_pos - robot_pos_arr)
-
-            # If arrived at destination (rendezvous point) stop, otherwise keep going there
-            if dist_to_rendezvous < 0.02: 
-                robot.state_mode = "TREASURE_FOUND"
-                robot.is_finder = False # Ensure it stays put
-                return np.array([0.0, 0.0])
-            else:
-                # Navigate straight to rendezvous point
-                return self.go_to_goal_control(robot.state, robot.rendezvous_pos, voronoi)
+            # Both the finder and the joining robots use the ring-based Lloyd control continuously.
+            return self.formation_loyd_control(robot.state, robot.target_treasure_pos, voronoi, ring_radius=cfg.RING_RADIUS)
             
         return np.array([0.0, 0.0]) # Safety Fallback

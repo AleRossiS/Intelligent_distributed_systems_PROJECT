@@ -27,7 +27,7 @@ class Robot:
     self.relocation_done = False # Flag to indicate if the robot has already relocated to P1 after finding the treasure
 
     # State mode paraters
-    self.state_mode = "SEARCHING" # can be "SEARCHING", "INSPECTING", "TRASURE_FOUND", "JOINING"
+    self.state_mode = "SEARCHING" # can be "SEARCHING", "INSPECTING", "TRASURE_FOUND"
     self.found_treasure = False
     self.target_treasure_pos = None
 
