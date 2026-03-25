@@ -50,7 +50,7 @@ obstacles_list = env.get_obstacle_polygons()
 # SETUP PER IL TEST: 
 r1 = Robot(robot_id=1, x=-1.0, y=3.0, color='tab:red')
 r2 = Robot(robot_id=2, x=0.0, y=1.0, color='tab:blue')
-r3 = Robot(robot_id=3, x=-2.0, y=4.0, color='tab:green') 
+r3 = Robot(robot_id=3, x=-7.5, y=-7.5, color='tab:green') 
 
 env.add_robot(r1)
 env.add_robot(r2)

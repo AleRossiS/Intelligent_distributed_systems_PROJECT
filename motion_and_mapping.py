@@ -1,9 +1,11 @@
 import numpy as np
 from scipy.stats import levy_stable
 import matplotlib.pyplot as plt
-from shapely.geometry import Point, LineString
+from shapely.geometry import Point, LineString, Polygon
 import config as cfg
 from matplotlib.path import Path
+from shapely.ops import unary_union
+
 
 
 ## HYPERPARAMETERS ##
@@ -17,7 +19,7 @@ LIN_VEL = 2.0       # Linear velocity magnitude
 ANG_VEL_GAIN = 1  # Angular velocity gain for turning
 ALPHA = 1.5         # Lévy distribution parameter (0 < alpha <= 2)
 BETA = 1.0          # Lévy distribution skewness parameter (-1 <= beta <= 1)
-SCALE = 1.0         # Lévy distribution scale parameter (scale > 0
+SCALE = 1.0         # Lévy distribution scale parameter (scale > 0)
 
 ## Obstacle avoidance parameters ##
 D_MIN = cfg.ROBOT_RADIUS * 2  # Minimum distance to start avoiding obstacles
@@ -328,6 +330,77 @@ class MotionController:
             
         return np.array([v, w])
     
+    
+    def lidar_mapping(self, robot, obstacles_list):
+        """
+        Simulates a 360-degree LiDAR sensor using ray-casting to detect obstacles and update the robot's internal map.
+        The method casts rays in all directions, checks for intersections with the obstacles, and updates the robot's
+        internal map with the detected points.
+        
+        Args:
+            robot: The Robot object for which to perform LiDAR mapping.
+            obstacles_list: A list of Shapely Polygons representing the obstacles in the environment.
+        
+        Returns:
+            A numpy array of shape (N, 2) containing the coordinates of the detected obstacle points.
+        """
+        
+        robot_pos_arr = np.array([robot.state[0], robot.state[1]])
+        robot_pos_pt = Point(robot_pos_arr)
+        visible_hit_points = []
+        
+        # Build Collision Map (Merge all inflated obstacles for fast intersection)
+        if obstacles_list:
+            inflated_obstacles = [obs.buffer(cfg.OBS_INFLATION_RADIUS) for obs in obstacles_list]
+            collision_map = unary_union(inflated_obstacles)
+        else:
+            collision_map = Polygon()
+            
+        # Ray casting
+        if not collision_map.is_empty:
+            num_rays = int(360 / cfg.RAY_CASTING_RESOLUTION)
+            angles = np.linspace(0, 2 * np.pi, num_rays, endpoint=False)
+            
+            for angle in angles:
+                # Create a single LiDAR ray up to SENSING_RANGE
+                ray_end = (robot_pos_arr[0] + np.cos(angle) * cfg.SENSING_RANGE, 
+                           robot_pos_arr[1] + np.sin(angle) * cfg.SENSING_RANGE)
+                ray_line = LineString([robot_pos_arr, ray_end])
+                
+                # Check if the ray hits an obstacle
+                if ray_line.intersects(collision_map):
+                    
+                    # Intersect with the BOUNDARY of the obstacles to get the exact hit point
+                    hit_geom = ray_line.intersection(collision_map.boundary)
+                    
+                    hit_point = None
+                    if hit_geom.geom_type == 'Point':
+                        hit_point = hit_geom
+                    elif hit_geom.geom_type in ['MultiPoint', 'GeometryCollection']:
+                        # If the ray pierces multiple walls, get the closest hit point
+                        # NOTE: Use .geoms to iterate over the geometry collection
+                        hit_points_list = [pt for pt in hit_geom.geoms if pt.geom_type == 'Point']
+                        if hit_points_list:
+                            hit_point = min(hit_points_list, key=lambda pt: robot_pos_pt.distance(pt))
+                        
+                    # If we found a valid hit point on the wall
+                    if hit_point is not None:
+                        coord = (hit_point.x, hit_point.y)
+                        visible_hit_points.append(coord)
+                        
+                        # Map update logic: Check if the detected point is already in the internal map 
+                        too_close = False
+                        for mapped_pt in robot.inspected_points:
+                            if np.linalg.norm(np.array(coord) - np.array(mapped_pt)) < cfg.MAP_RESOLUTION:
+                                too_close = True
+                                break
+                        
+                        # Add to internal map if it's a new, unique point
+                        if not too_close:
+                            robot.inspected_points.append(coord)
+
+        return np.array(visible_hit_points) if len(visible_hit_points) > 0 else np.array([])
+    
 
     def get_control(self, robot, all_robots, dt, voronoi, obstacles_list=[], target_obj=None):
         """
@@ -346,50 +419,27 @@ class MotionController:
             A numpy array [v, w] representing the linear and angular velocity commands for the robot.
         """
         
-        # -- Obstacles sensing and Mapping -- #
-        # 1. Extract current position
+        # -- Obstacles sensing and Mapping #
+        visible_hit_points = self.lidar_mapping(robot, obstacles_list)
+        
+        # Extract current position
         robot_pos_arr = np.array([robot.state[0], robot.state[1]])
-
-        # 2. Compute voronoi points distance to the robot
-        voronoi_coords = np.array(voronoi.exterior.coords)
-        distances_to_robot = np.linalg.norm(voronoi_coords - robot_pos_arr, axis=1)
         
-        # 3. Filter points: keep only REAL physical obstacles within LIDAR range
-        LIDAR_HIT_THRESHOLD = cfg.SENSING_RANGE * 0.9
-        visible_hit_points = []
-        
-        # Check the voronoi points that are within the LIDAR sensing range 
-        for pt, dist_to_me in zip(voronoi_coords, distances_to_robot):
-            if dist_to_me < LIDAR_HIT_THRESHOLD:
-                is_shared_boundary = False # Initialize flag 
-                
-                # Filter out shared boundaries with other robots
-                for other_pos in robot.other_robots_positions.values():
-                    other_pos_arr = np.array(other_pos)
-                    dist_to_other = np.linalg.norm(pt - other_pos_arr)
-                    
-                    if dist_to_other <= dist_to_me + 0.05:  # 0.05 tolerance
-                        is_shared_boundary = True
-                        break
-                
-                # If it's not a shared boundary, consider it a visible hit point (real obstacle)
-                if not is_shared_boundary:
-                    visible_hit_points.append(pt)
-                
-        visible_hit_points = np.array(visible_hit_points)
-
-        # 4. Find the closest real obstacle point for wall-following control in INSPECTING state
+        # 2. Find the closest point for wall-following control
         if len(visible_hit_points) > 0:
             distances_to_real_obs = np.linalg.norm(visible_hit_points - robot_pos_arr, axis=1) # All distances
             min_idx = np.argmin(distances_to_real_obs) # Find the minimum distance index
             
-            target_arr = visible_hit_points[min_idx] # The closest real obstacle point
+            target_arr = visible_hit_points[min_idx] # The closest point
             closest_point = Point(target_arr[0], target_arr[1])
-            dist_to_boundary = distances_to_real_obs[min_idx] # Distance to the closest real obstacle point, used for state transitions
+            dist_to_boundary = distances_to_real_obs[min_idx] # Distance to the closest point
         else:
-            dist_to_boundary = float('inf') # Fallback if no real obstacles are visible
+            dist_to_boundary = float('inf') # Fallback if no obstacles are visible
             closest_point = None
-            target_arr = None        
+            target_arr = None 
+            
+        
+        LIDAR_HIT_THRESHOLD = cfg.SENSING_RANGE * 0.9
     
         ## ---------------- FINITE STATE MACHINE (FSM) ---------------- ##
         
