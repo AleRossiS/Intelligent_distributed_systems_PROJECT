@@ -83,36 +83,18 @@ class Environment:
     ])
     
     
-  def add_target_object(self, cx, cy, outer_radius=0.4, inner_radius=0.15):
-      """
-      Adds a target object (star shape) as a Shapely Polygon to be detectable by LiDAR.
-      
-      Args:
-          cx: x coordinate of the star center.
-          cy: y coordinate of the star center.
-          outer_radius: distance from center to the outer points of the star.
-          inner_radius: distance from center to the inner corners of the star.
-      """
-      num_points = 5
-      vertices = []
-      
-      # Angle step to alternate between outer and inner points of the star
-      angle_step = np.pi / num_points 
+  def add_target_object(self, cx, cy, radius=0.4):
+    """
+    Adds a target object (circle shape) as a Shapely Polygon to be detectable by LiDAR.
+    
+    Args:
+      cx: x coordinate of the circle center.
+      cy: y coordinate of the circle center.
+      radius: radius of the circular target object.
+    """
 
-      # Generate vertices for the star shape 
-      for i in range(2 * num_points):
-          
-          r = outer_radius if i % 2 == 0 else inner_radius
-          
-          angle = np.pi / 2 - i * angle_step
-          
-          x = cx + r * np.cos(angle)
-          y = cy + r * np.sin(angle)
-          vertices.append((x, y))
-
-      # Build the star-shaped target object as a Shapely Polygon
-      self.target_object = Polygon(vertices)
-      
+    self.target_object = Point(cx, cy).buffer(radius)
+  
       
   def get_treasure_signal_polygon(self):
     """

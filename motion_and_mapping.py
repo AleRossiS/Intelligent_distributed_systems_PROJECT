@@ -329,17 +329,18 @@ class MotionController:
         return np.array([v, w])
     
 
-    def get_control(self, robot, dt, voronoi, obstacles_list=[], treasure_pos=None):
+    def get_control(self, robot, all_robots, dt, voronoi, obstacles_list=[], target_obj=None):
         """
         Main interface for the Finite State Machine (FSM).
         Selects the appropriate control strategy and calculates [v, w] commands.
         
         Args:
             robot: The Robot object for which to calculate the control.
+            all_robots: List of all Robot objects in the environment (used for shared map and communication).
             dt: Time step for control update.
             voronoi: The Voronoi cell (Shapely Polygon) of the robot.
             obstacles_list: List of Shapely Polygons representing physical obstacles in the environment.
-            treasure_pos: Tuple (x, y) of the treasure position, used for detection and final approach.
+            target_obj: The target object (Shapely Polygon) to be detected and measured by the robot.n 
             
         Returns:
             A numpy array [v, w] representing the linear and angular velocity commands for the robot.
@@ -347,7 +348,6 @@ class MotionController:
         
         # -- Obstacles sensing and Mapping -- #
         # 1. Extract current position
-        robot_pos = Point(robot.state[0], robot.state[1])
         robot_pos_arr = np.array([robot.state[0], robot.state[1]])
 
         # 2. Compute voronoi points distance to the robot
@@ -394,36 +394,11 @@ class MotionController:
         ## ---------------- FINITE STATE MACHINE (FSM) ---------------- ##
         
         # --- TREASURE DETECTION  --- #
-        if treasure_pos is not None and robot.state_mode in ["SEARCHING", "INSPECTING"]:
-            treasure_point = Point(treasure_pos[0], treasure_pos[1])
-            dist_to_treasure = robot_pos.distance(treasure_point)
+        if target_obj is not None and robot.state_mode in ["SEARCHING", "INSPECTING"]:
             
-            # Check if the robot is within the detection range of the treasure
-            if dist_to_treasure < cfg.BL_RANGE * 0.9: # 0.9 is a safety factor 
-                signal_line = LineString([robot_pos, treasure_point]) # Line of sight between the robot and the treasure
-                signal_blocked = False # Initialize flag to check if the line of sight is blocked by obstacles
-                
-                # Check Line-Of-Sight against physical obstacles (excluding treasure, that is treated like an obstacle)
-                for obs in obstacles_list:
-                    if obs.contains(treasure_point) or obs.distance(treasure_point) < 0.1:
-                        continue # Skip if the obstacle is the treasure itself and restart the loop
-                    
-                    if signal_line.intersects(obs):
-                        signal_blocked = True
-                        break # No need to check further if the signal is already blocked, go to the next code step
-                        
-                # Transition to TREASURE_FOUND if line of sight is clear => treasure detected
-                if not signal_blocked:
-                    print(f"Robot {robot.robot_id} found the treasure")
-                    robot.state_mode = "TREASURE_FOUND"
-                    robot.found_treasure = True
-                    robot.target_treasure_pos = np.array([treasure_point.x, treasure_point.y])
-                    
-                    # NUOVO: Imposta i flag per chiamare tutti gli altri robot
-                    robot.is_finder = True
-                    robot.has_called_help = False 
-                    
-                    return np.array([0.0, 0.0]) # Stop to stabilize
+            # Use the robot's internal sensor to detect and measure the target
+            if robot.measure_target_edge(target_obj, obstacles_list):
+                return np.array([0.0, 0.0]) # Stop to stabilize after finding the target
                 
                     
         # --- 1. SEARCHING STATE ---
@@ -521,11 +496,12 @@ class MotionController:
         # --- 3. TREASURE FOUND STATE ---
         elif robot.state_mode in "TREASURE_FOUND":
             
-            # If this robot is the finder and hasn't called for help yet
             if getattr(robot, 'is_finder', False) and not getattr(robot, 'has_called_help', False):
-                robot.call_all_for_help = True # Set flag to trigger broadcast to ALL robots
-                robot.has_called_help = True   # Mark as called so it doesn't spam the call
                 
+                # If the robot is the finder and has not called for help yet, broadcast a call to join the formation
+                robot.broadcast_help(all_robots)
+                robot.has_called_help = True # Ensure the call for help is only sent once
+            
             # Both the finder and the joining robots use the ring-based Lloyd control continuously.
             return self.formation_loyd_control(robot.state, robot.target_treasure_pos, voronoi, ring_radius=cfg.RING_RADIUS)
             

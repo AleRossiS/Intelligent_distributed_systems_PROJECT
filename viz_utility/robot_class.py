@@ -2,6 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import random
 import config as cfg
+from shapely.geometry import Point, LineString, Polygon
+from shapely.ops import unary_union
+
 
 class Robot:
   """
@@ -167,10 +170,121 @@ class Robot:
     if sender_id is not None and sender_pos is not None:
       self.other_robots_positions[sender_id] = sender_pos
 
-    # 2. Update the map with the received point using the merging function deif
+    # 2. Update the map with the received point using the merging function defined above
     incoming_map = payload.get('map_points')
     self.update_shared_map(incoming_map)
     
+    
+  def measure_target_edge(self, target_obj, obstacles_list):
+    """
+    Simulates the directional sensor and LiDAR to detect the target position.
+    Uses a ray-casting approach based on the direction provided by the directional sensor.
+    
+    Args:
+      target_obj: Shapely Polygon representing the target.
+      obstacles_list: List of Shapely Polygons representing physical obstacles.
+      
+    Returns:
+      True if the target is detected and measured, False otherwise.
+    """
+    
+    # 1. Check if target exists
+    if target_obj is None:
+      return False
+
+    robot_pos = Point(self.state[0], self.state[1])
+    target_center = target_obj.centroid
+    
+    
+    # 2. Directional Sensor: Get the angle towards the target
+    dx = target_center.x - robot_pos.x
+    dy = target_center.y - robot_pos.y
+    dist_to_center = np.hypot(dx, dy)
+    
+    # Check if we are within the maximum broadcast/signal range
+    if dist_to_center > cfg.BL_RANGE * 0.9: 
+      return False
+
+    # The directional sensor gives us the angle
+    target_angle = np.arctan2(dy, dx)
+    
+    
+    # 3. Simulate LiDAR: Cast a ray in the sensed direction up to the sensing range and check for obstacles 
+    ray_end = (robot_pos.x + np.cos(target_angle) * cfg.SENSING_RANGE, 
+                robot_pos.y + np.sin(target_angle) * cfg.SENSING_RANGE)
+    
+    # Line representing the LiDAR ray of length equal to the sensing range in the direction of the target
+    ray_line = LineString([robot_pos, ray_end])
+    
+    
+    # 4. Build Collision Map 
+    all_solids = obstacles_list.copy() # Also the target itself is an obstacle 
+    
+    if all_solids:
+      collision_map = unary_union(all_solids)
+    else:
+      collision_map = Polygon() # fallback
+        
+        
+    # 5. Calculate visible ray by subtracting the collision map from the ray line
+    if not collision_map.is_empty:
+      visible_ray = ray_line.difference(collision_map) # = Part of the ray that is not occluded by obstacles
+    else:
+      visible_ray = ray_line
+        
+    # 6. Find the hit point of the visible ray
+    hit_point = None
+    
+    # This part handles the case where the visible ray is split into multiple segments due to obstacles
+    if not visible_ray.is_empty:
+      if visible_ray.geom_type == 'MultiLineString':
+        for line in visible_ray.geoms:
+          if line.distance(robot_pos) < 1e-5:
+            hit_point = Point(line.coords[-1])
+            break
+      elif visible_ray.geom_type == 'LineString':
+        hit_point = Point(visible_ray.coords[-1])
+            
+    if hit_point is None:
+      return False 
+        
+    # 7. Check if the hit point is the target edge (using a small threshold to account for numerical issues)
+    if hit_point.distance(target_obj) < 1e-3: 
+        
+      # 8. Update internal state
+      self.state_mode = "TREASURE_FOUND"
+      self.found_treasure = True
+      self.target_treasure_pos = np.array([hit_point.x, hit_point.y])
+      self.is_finder = True
+      self.has_called_help = False
+      
+      return True
+        
+    return False # If we hit something else or nothing at all, the target is not detected
+  
+
+  def broadcast_help(self, all_robots):
+    """
+    Broadcasts the target position to all other robots if this robot is the finder.
+    Ensures the broadcast happens only once to avoid spamming the communication channel.
+    
+    Args:
+      all_robots: List containing all Robot instances in the environment.
+    """
+        
+    # 1. Call all other robots
+    for peer in all_robots:
+      if peer.robot_id != self.robot_id: # Do not call itself
+          
+        # Only interrupt robots that are not already dealing with the treasure
+        if peer.state_mode not in "TREASURE_FOUND":
+          peer.state_mode = "TREASURE_FOUND"
+          peer.target_treasure_pos = self.target_treasure_pos
+          print(f"[RADIO] Robot {self.robot_id} called Robot {peer.robot_id} to join the formation!")
+    
+      # 2. Set the flag to indicate help has been called
+      self.has_called_help = True
+
     
   def draw(self, ax, show_history=True):
     """
@@ -225,14 +339,19 @@ class Robot:
     # Draw transmission indicator if the robot is currently transmitting
     if getattr(self, 'is_transmitting', False):
       # Draw expanding circles to represent the transmission signal
-      radii = [self.radius * 2.0, self.radius * 3.5, self.radius * 5.0]
-      alphas = [0.8, 0.5, 0.2] # Corresponding alpha values for the circles
+      radii = [self.radius * 2.0, self.radius * 3.5]
+      alphas = [0.6, 0.3] # Corresponding alpha values for the circles
       
       for r_wave, a_wave in zip(radii, alphas):
-        tx_circle = plt.Circle((x, y), r_wave, color='magenta', fill=False, linestyle='--', linewidth=1.5, alpha=a_wave)
+        tx_circle = plt.Circle((x, y), r_wave, color='magenta', fill=False, linestyle='-', linewidth=0.5, alpha=a_wave)
         ax.add_patch(tx_circle)
         
       # text indicator for transmission TX
-      ax.text(x, y + self.radius * 5.5, "TX", ha='center', va='bottom', fontsize=10, color='magenta', fontweight='bold')
+      ax.text(x, y + self.radius * 3.75, "TX", ha='center', va='bottom', fontsize=10, color='magenta', fontweight='bold')
+      
+    # Draw the target position if known 
+    if self.target_treasure_pos is not None:
+      ax.scatter(self.target_treasure_pos[0], self.target_treasure_pos[1], 
+                 color=self.color, s=80, marker='o', edgecolors='black', zorder=10, alpha=0.5)
 
   

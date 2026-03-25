@@ -3,7 +3,7 @@ import numpy as np
 from viz_utility.robot_class import Robot
 from viz_utility.environment_class import Environment
 from voronoi_cells import VoronoiCell
-from motion_functions import MotionController
+from motion_and_mapping import MotionController
 from broadcast_and_consensus import broadcast_data
 
 import config as cfg
@@ -104,9 +104,9 @@ for i in range(20000):
     cella3, centroid3 = vor_r3.compute_and_clip(pos_r3, robot_index=0, obstacles=obstacles_list) 
     
     # 3. CALCOLIAMO I COMANDI DI CONTROLLO
-    u1 = ctrl1.get_control(r1, dt=0.1, voronoi=cella1[0], obstacles_list=obstacles_list, treasure_pos=treasure_pos) 
-    u2 = ctrl2.get_control(r2, dt=0.1, voronoi=cella2[0], obstacles_list=obstacles_list, treasure_pos=treasure_pos) 
-    u3 = ctrl3.get_control(r3, dt=0.1, voronoi=cella3[0], obstacles_list=obstacles_list, treasure_pos=treasure_pos) 
+    u1 = ctrl1.get_control(r1, env.robots, dt=0.1, voronoi=cella1[0], obstacles_list=obstacles_list, target_obj=env.target_object) 
+    u2 = ctrl2.get_control(r2, env.robots, dt=0.1, voronoi=cella2[0], obstacles_list=obstacles_list, target_obj=env.target_object) 
+    u3 = ctrl3.get_control(r3, env.robots, dt=0.1, voronoi=cella3[0], obstacles_list=obstacles_list, target_obj=env.target_object) 
 
 
     # LOGICA DI COMUNICAZIONE ASINCRONA (MAPPA E POSIZIONI)
@@ -118,24 +118,7 @@ for i in range(20000):
             print(f"[RETE] Clock raggiunto: Robot {r.robot_id} sta trasmettendo.")
         else:
             r.is_transmitting = False # (O la logica di decremento se hai le onde)
-
-
-    # LOGICA DI COMUNICAZIONE RADIO (RICHIESTA AIUTO A TUTTI)
-    for current_robot in env.robots:
-        # Se il robot ha attivato la richiesta di aiuto generale
-        if getattr(current_robot, 'call_all_for_help', False):
-            
-            for compagno in env.robots:
-                # Chiama TUTTI gli altri robot (tranne se stesso)
-                if compagno.robot_id != current_robot.robot_id:
-                    # Se il compagno non sa ancora del tesoro, cambiamogli stato
-                    if compagno.state_mode not in ["TREASURE_FOUND", "JOINING"]:
-                        compagno.state_mode = "JOINING"
-                        compagno.target_treasure_pos = current_robot.target_treasure_pos
-                        print(f"[COMUNICAZIONE] Robot {current_robot.robot_id} ha chiamato Robot {compagno.robot_id} in aiuto in formazione!")
-            
-            # Spegne la radio dopo aver trasmesso a tutti
-            current_robot.call_all_for_help = False
+        
 
     # 4. AGGIORNO LA POSIZIONE DEI ROBOT
     r1.update_pose(u1, dt)
