@@ -63,44 +63,49 @@ ctrl2 = MotionController()
 
 dt = 0.1 # Step temporale
 
+# INIZIALIZZAZIONE MEMORIA (Per non far crashare Voronoi al frame 0) 
+for current_robot in env.robots:
+    for other_robot in env.robots:
+        if current_robot.robot_id != other_robot.robot_id:
+            current_robot.other_robots_positions[other_robot.robot_id] = (other_robot.state[0], other_robot.state[1])
+
 # Simulazione
 plt.ion()
 fig, ax = plt.subplots(figsize=(8,8))
 
 for i in range(20000):
 
-    # 1. AGGIORNA LA MEMORIA DEI ROBOT CON LE POSIZIONI ALTRUI
-    for current_robot in env.robots:
-        other_positions_dict = {}
-        for other_robot in env.robots:
-            if current_robot.robot_id != other_robot.robot_id:
-                other_positions_dict[other_robot.robot_id] = (other_robot.state[0], other_robot.state[1])
-        
-        current_robot.other_robots_positions = other_positions_dict
-
-    # 2. CALCOLIAMO I NUOVI VORONOI E I CENTROIDI
-    pos = np.array([r.state[:2] for r in env.robots]) 
+    # 2. CALCOLIAMO I NUOVI VORONOI IN MODO DECENTRALIZZATO
+    # Costruiamo la percezione del mondo per R1
+    pos_r1 = [r1.state[:2]] # R1 mette se stesso al primo posto (indice 0)
+    for other_pos in r1.other_robots_positions.values():
+        pos_r1.append(other_pos)
+    pos_r1 = np.array(pos_r1)
     
-    cella1, centroid1 = vor_r1.compute_and_clip(pos, robot_index=0, obstacles=obstacles_list) 
-    cella2, centroid2 = vor_r2.compute_and_clip(pos, robot_index=1, obstacles=obstacles_list) 
+    # Costruiamo la percezione del mondo per R2
+    pos_r2 = [r2.state[:2]] # R2 mette se stesso al primo posto (indice 0)
+    for other_pos in r2.other_robots_positions.values():
+        pos_r2.append(other_pos)
+    pos_r2 = np.array(pos_r2)
+    
+    # Calcolo Voronoi (notare che robot_index è diventato 0 per entrambi!)
+    cella1, centroid1 = vor_r1.compute_and_clip(pos_r1, robot_index=0, obstacles=obstacles_list) 
+    cella2, centroid2 = vor_r2.compute_and_clip(pos_r2, robot_index=0, obstacles=obstacles_list) 
     
     # 3. CALCOLIAMO I COMANDI DI CONTROLLO
     u1 = ctrl1.get_control(r1, dt=0.1, voronoi=cella1[0], obstacles_list=obstacles_list, treasure_pos=treasure_pos) 
     u2 = ctrl2.get_control(r2, dt=0.1, voronoi=cella2[0], obstacles_list=obstacles_list, treasure_pos=treasure_pos) 
 
 
-
     # LOGICA DI COMUNICAZIONE ASINCRONA (MAPPA E POSIZIONI)
-
     for r in env.robots:
         # Il robot incrementa il suo clock e decide se è ora di trasmettere
         if r.tick_timer():
             broadcast_data(r, env.robots)
-            r.is_transmitting = True
+            r.is_transmitting = True  # O 15 se hai usato l'animazione ad onde!
             print(f"[RETE] Clock raggiunto: Robot {r.robot_id} sta trasmettendo.")
         else:
-            r.is_transmitting = False
-
+            r.is_transmitting = False # (O la logica di decremento se hai le onde)
 
 
     # LOGICA DI COMUNICAZIONE RADIO (RICHIESTA AIUTO)
@@ -116,7 +121,6 @@ for i in range(20000):
                     print(f"[COMUNICAZIONE] Robot {current_robot.robot_id} ha chiamato Robot {compagno.robot_id} in aiuto sul punto originale!")
             
             current_robot.id_to_call = None
-    # -----------------------------------------------------------------
 
     # 4. AGGIORNO LA POSIZIONE DEI ROBOT
     r1.update_pose(u1, dt)
