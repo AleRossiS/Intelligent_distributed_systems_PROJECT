@@ -202,7 +202,9 @@ class Robot:
     # Plot robot trajectory
     if show_history:
       ax.plot(self.history_x, self.history_y, color=self.color, linewidth=1.5, alpha=0.4, linestyle='-')
-      
+    
+    
+    ### THIS ALLOWS TO SEE THE INSPECTED POINTS OF EACH ROBOT (USE WITH CAUTION, IT CAN GET MESSY) ###
     # Draw inspected points
     # if len(self.inspected_points) > 0:
     #     pts = np.array(self.inspected_points)
@@ -215,7 +217,7 @@ class Robot:
     #     ax.scatter(pts[:, 0], pts[:, 1], color=self.color, s=8, alpha=0.6, zorder=1)
     
     
-    ### TEST  ###
+    ### TEST  TO SEE ONLY WHAT ROBOT 1 SEES ###
     if self.robot_id == 1 and hasattr(self, 'shared_map') and len(self.shared_map) > 0:
       pts = np.array(self.shared_map)
       ax.scatter(pts[:, 0], pts[:, 1], color='black', s=20, marker='x', alpha=1.0, zorder=3)
