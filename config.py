@@ -18,7 +18,7 @@ MAP_RESOLUTION =ROBOT_RADIUS * 1 # Distance between points in the generated map
 
 # --- RAY CASTING SETTINGS ---
 # NB if this value is too small, the simulation will lag a bit
-RAY_CASTING_RESOLUTION = 15.0 # degrees between rays 
+RAY_CASTING_RESOLUTION = 10.0 # degrees between rays 
 
 # --- FORMATION CONTROL SETTINGS ---
 RING_RADIUS = 3.0 # Distance from the goal at which the robot is considered

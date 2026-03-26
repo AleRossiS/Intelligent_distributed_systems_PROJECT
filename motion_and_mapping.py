@@ -331,7 +331,7 @@ class MotionController:
         return np.array([v, w])
     
     
-    def lidar_mapping(self, robot, obstacles_list):
+    def lidar_mapping(self, robot, collision_map):
         """
         Simulates a 360-degree LiDAR sensor using ray-casting to detect obstacles and update the robot's internal map.
         The method casts rays in all directions, checks for intersections with the obstacles, and updates the robot's
@@ -339,7 +339,7 @@ class MotionController:
         
         Args:
             robot: The Robot object for which to perform LiDAR mapping.
-            obstacles_list: A list of Shapely Polygons representing the obstacles in the environment.
+            collision_map: A Shapely Polygon representing the collision map.
         
         Returns:
             A numpy array of shape (N, 2) containing the coordinates of the detected obstacle points.
@@ -348,13 +348,7 @@ class MotionController:
         robot_pos_arr = np.array([robot.state[0], robot.state[1]])
         robot_pos_pt = Point(robot_pos_arr)
         visible_hit_points = []
-        
-        # Build Collision Map (Merge all inflated obstacles for fast intersection)
-        if obstacles_list:
-            inflated_obstacles = [obs.buffer(cfg.OBS_INFLATION_RADIUS) for obs in obstacles_list]
-            collision_map = unary_union(inflated_obstacles)
-        else:
-            collision_map = Polygon()
+    
             
         # Ray casting
         if not collision_map.is_empty:
@@ -391,7 +385,7 @@ class MotionController:
         return np.array(visible_hit_points) if len(visible_hit_points) > 0 else np.array([])
     
 
-    def get_control(self, robot, all_robots, dt, voronoi, obstacles_list=[], target_obj=None):
+    def get_control(self, robot, all_robots, dt, voronoi, obstacles_map=Polygon(), inflated_map = Polygon(), target_obj=None):
         """
         Main interface for the Finite State Machine (FSM).
         Selects the appropriate control strategy and calculates [v, w] commands.
@@ -401,7 +395,8 @@ class MotionController:
             all_robots: List of all Robot objects in the environment (used for shared map and communication).
             dt: Time step for control update.
             voronoi: The Voronoi cell (Shapely Polygon) of the robot.
-            obstacles_list: List of Shapely Polygons representing physical obstacles in the environment.
+            obstacles_map: A Shapely Polygon representing the collision map.
+            inflated_map: A Shapely Polygon representing the inflated obstacle map.
             target_obj: The target object (Shapely Polygon) to be detected and measured by the robot.n 
             
         Returns:
@@ -409,7 +404,7 @@ class MotionController:
         """
         
         # -- Obstacles sensing and Mapping #
-        visible_hit_points = self.lidar_mapping(robot, obstacles_list)
+        visible_hit_points = self.lidar_mapping(robot, inflated_map) # Get the visible hit points from the LiDAR mapping   
         
         # Extract current position
         robot_pos_arr = np.array([robot.state[0], robot.state[1]])
@@ -437,7 +432,7 @@ class MotionController:
         if target_obj is not None and robot.state_mode in ["SEARCHING", "INSPECTING"]:
             
             # Use the robot's internal sensor to detect and measure the target
-            if robot.measure_target_edge(target_obj, obstacles_list):
+            if robot.measure_target_edge(target_obj, obstacles_map):
                 return np.array([0.0, 0.0]) # Stop to stabilize after finding the target
                 
                     

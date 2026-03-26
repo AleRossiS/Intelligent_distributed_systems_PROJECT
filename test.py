@@ -98,15 +98,18 @@ for i in range(20000):
         pos_r3.append(other_pos)
     pos_r3 = np.array(pos_r3)
     
+    real_obs_map = env.get_obstacle_polygons()
+    inflated_obs_map = env.get_inflated_obstacles()
+    
     # Calcolo Voronoi (notare che robot_index è diventato 0 per entrambi!)
-    cella1, centroid1 = vor_r1.compute_and_clip(pos_r1, robot_index=0, obstacles=obstacles_list) 
-    cella2, centroid2 = vor_r2.compute_and_clip(pos_r2, robot_index=0, obstacles=obstacles_list) 
-    cella3, centroid3 = vor_r3.compute_and_clip(pos_r3, robot_index=0, obstacles=obstacles_list) 
+    cella1, centroid1 = vor_r1.compute_and_clip(pos_r1, robot_index=0, obstacles=inflated_obs_map) 
+    cella2, centroid2 = vor_r2.compute_and_clip(pos_r2, robot_index=0, obstacles=inflated_obs_map) 
+    cella3, centroid3 = vor_r3.compute_and_clip(pos_r3, robot_index=0, obstacles=inflated_obs_map) 
     
     # 3. CALCOLIAMO I COMANDI DI CONTROLLO
-    u1 = ctrl1.get_control(r1, env.robots, dt=0.1, voronoi=cella1[0], obstacles_list=obstacles_list, target_obj=env.target_object) 
-    u2 = ctrl2.get_control(r2, env.robots, dt=0.1, voronoi=cella2[0], obstacles_list=obstacles_list, target_obj=env.target_object) 
-    u3 = ctrl3.get_control(r3, env.robots, dt=0.1, voronoi=cella3[0], obstacles_list=obstacles_list, target_obj=env.target_object) 
+    u1 = ctrl1.get_control(r1, env.robots, dt=0.1, voronoi=cella1[0], obstacles_map=real_obs_map, inflated_map=inflated_obs_map, target_obj=env.target_object) 
+    u2 = ctrl2.get_control(r2, env.robots, dt=0.1, voronoi=cella2[0], obstacles_map=real_obs_map, inflated_map=inflated_obs_map, target_obj=env.target_object) 
+    u3 = ctrl3.get_control(r3, env.robots, dt=0.1, voronoi=cella3[0], obstacles_map=real_obs_map, inflated_map=inflated_obs_map, target_obj=env.target_object) 
 
 
     # LOGICA DI COMUNICAZIONE ASINCRONA (MAPPA E POSIZIONI)

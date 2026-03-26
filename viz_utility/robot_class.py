@@ -175,14 +175,14 @@ class Robot:
     self.update_shared_map(incoming_map)
     
     
-  def measure_target_edge(self, target_obj, obstacles_list):
+  def measure_target_edge(self, target_obj, obstacles_map):
     """
     Simulates the directional sensor and LiDAR to detect the target position.
     Uses a ray-casting approach based on the direction provided by the directional sensor.
     
     Args:
       target_obj: Shapely Polygon representing the target.
-      obstacles_list: List of Shapely Polygons representing physical obstacles.
+      obstacles_map: A Shapely Polygon representing the collision map.
       
     Returns:
       True if the target is detected and measured, False otherwise.
@@ -217,13 +217,8 @@ class Robot:
     ray_line = LineString([robot_pos, ray_end])
     
     
-    # 4. Build Collision Map 
-    all_solids = obstacles_list.copy() # Also the target itself is an obstacle 
-    
-    if all_solids:
-      collision_map = unary_union(all_solids)
-    else:
-      collision_map = Polygon() # fallback
+    # 4. Build Collision Map (MODIFICATO: non serve più fondere nulla!)
+    collision_map = obstacles_map 
         
         
     # 5. Calculate visible ray by subtracting the collision map from the ray line
@@ -261,7 +256,6 @@ class Robot:
       return True
         
     return False # If we hit something else or nothing at all, the target is not detected
-  
 
   def broadcast_help(self, all_robots):
     """

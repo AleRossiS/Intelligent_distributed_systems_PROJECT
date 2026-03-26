@@ -27,13 +27,13 @@ class VoronoiCell:
     self.num_rays = int(360 / cfg.RAY_CASTING_RESOLUTION)
     self.angles = np.linspace(0, 2 * np.pi, self.num_rays, endpoint=False) # Precompute the angles for ray casting
 
-  def ray_casting_polygon(self, robot_pos, obstacles):
+  def ray_casting_polygon(self, robot_pos, collision_map):
     """
     Compute the visibility polygon for a robot simulating ray casting.
     
     Args:
         robot_pos: tuple (x, y) representing the position of the robot.
-        obstacles: list of shapely Polygons representing the obstacles in the environment.
+        collision_map: shapely Polygon representing the union of all obstacles and environment boundaries.
     
     Returns:
         A shapely Polygon representing the visibility area of the robot.
@@ -41,13 +41,7 @@ class VoronoiCell:
     ray_vertices = [] # Intialize list of vertices for the visibility polygon
     robot_point = Point(robot_pos) # Convert robot position to a shapely Point for distance calculations
         
-    # Inflate obstacles 
-    inflated_obstacles = [obs.buffer(cfg.OBS_INFLATION_RADIUS) for obs in obstacles]
-    if inflated_obstacles:
-      # Create a single polygon representing the union of all inflated obstacles for efficient difference operations
-      collision_map = unary_union(inflated_obstacles).buffer(0) # Buffer(0) to clean up any potential geometry issue
-    else:
-      collision_map = Polygon() # Empty polygon if there are no obstacles
+    
     
     # 1. Cast rays in all directions and find the first intersection with obstacles or environment boundaries
     for angle in self.angles:
@@ -95,7 +89,7 @@ class VoronoiCell:
     return vis_poly
 
 
-  def compute_and_clip(self, points, robot_index, obstacles=[]):
+  def compute_and_clip(self, points, robot_index, obstacles= Polygon()):
     """Compute the Voronoi cell for the given robot and clip the cells to the sensing range and obstacles (including the environment boundaries) using a ray casting approach.
 
     Args:
@@ -141,14 +135,12 @@ class VoronoiCell:
       
       # 1. Voronoi polygons computation   
       vor_poly = Polygon([vor.vertices[v] for v in region_vertices_indices])
-      
-      # Inflate the Voronoi cell by a safety margin )
       vor_poly = vor_poly.buffer(-cfg.DIST_BTW_ROBOTS)
         
       # 2. Ray Casting 
       vis_poly = self.ray_casting_polygon(robot_pos, obstacles)
       
-      # 3. Clipping Voronoi cell with visibility polygon (obcles and environment boundaries)
+      # 3. Clipping Voronoi cell with visibility polygon 
       current_poly = vor_poly.intersection(vis_poly)
       
       # 4. Handles the case of multiple disjoint polygons (we had some errors otherwise)

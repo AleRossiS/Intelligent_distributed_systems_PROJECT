@@ -31,7 +31,7 @@ class Environment:
     
   def add_obstacle(self, vertices):
     """
-    Adds a generic polygonal obstacle and retu.
+    Adds a generic polygonal obstacle and returns the updated list of obstacles.
     Args:
         vertices: list of (x, y) tuples representing the polygon vertices.
                   e.g., [(0,0), (2,0), (2,2), (0,2)]
@@ -40,14 +40,25 @@ class Environment:
     
 
   def get_obstacle_polygons(self):
-    """Returns a list of shapely Polygons representing the obstacles in the environment."""
+    """Returns a single merged Shapely geometry representing all obstacles."""
+    
     polygons = [Polygon(obs) for obs in self.obstacles]
     
     # Add the target object as an obstacle if it exists
     if self.target_object is not None:
       polygons.append(self.target_object)
     
-    return polygons
+    # Merge all obstacles into a single geometry to simplify intersection checks
+    merged_obstacles = unary_union(polygons)
+    return merged_obstacles
+  
+  
+  def get_inflated_obstacles(self):
+    """Returns the inflated obstacle map."""
+    
+    real_map = self.get_obstacle_polygons()
+
+    return real_map.buffer(cfg.OBS_INFLATION_RADIUS)
 
 
   def add_walls(self, wall_thickness=0.5):
