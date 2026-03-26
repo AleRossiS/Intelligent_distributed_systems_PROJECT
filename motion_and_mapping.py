@@ -388,17 +388,6 @@ class MotionController:
                         coord = (hit_point.x, hit_point.y)
                         visible_hit_points.append(coord)
                         
-                        # Map update logic: Check if the detected point is already in the internal map 
-                        too_close = False
-                        for mapped_pt in robot.inspected_points:
-                            if np.linalg.norm(np.array(coord) - np.array(mapped_pt)) < cfg.MAP_RESOLUTION:
-                                too_close = True
-                                break
-                        
-                        # Add to internal map if it's a new, unique point
-                        if not too_close:
-                            robot.inspected_points.append(coord)
-
         return np.array(visible_hit_points) if len(visible_hit_points) > 0 else np.array([])
     
 
@@ -424,6 +413,7 @@ class MotionController:
         
         # Extract current position
         robot_pos_arr = np.array([robot.state[0], robot.state[1]])
+        
         
         # 2. Find the closest point for wall-following control
         if len(visible_hit_points) > 0:
@@ -456,12 +446,14 @@ class MotionController:
             
             # Check if a real obstacle is hit to start mapping
             if dist_to_boundary < LIDAR_HIT_THRESHOLD and target_arr is not None:
-                is_already_inspected = False
                 
+                is_already_inspected = False # Flag initialization
+                
+                # If the point is already inspected, we don't want to switch to INSPECTING state again 
                 for pt in robot.shared_map:
                     if np.linalg.norm(target_arr - pt) < cfg.MAP_RESOLUTION:
                         is_already_inspected = True
-                        break # If the point is already inspected, we don't want to switch to INSPECTING state again 
+                        break 
                 
                 # If new real obstacle point and not already inspected, switch to INSPECTING state to start mapping it
                 if not is_already_inspected:
