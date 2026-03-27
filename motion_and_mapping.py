@@ -23,7 +23,9 @@ SCALE = 1.0         # Lévy distribution scale parameter (scale > 0)
 
 ## Obstacle avoidance parameters ##
 D_MIN = cfg.ROBOT_RADIUS * 2  # Minimum distance to start avoiding obstacles
-REPULSIVE_GAIN = 8 # Repulsive control gain for obstacle avoidance 
+REPULSIVE_GAIN_FOR_LEVY = 8 # Repulsive control gain for obstacle avoidance during Levy flight 
+REPULSIVE_GAIN_FOR_LOYD = 0.5 # Repulsive control gain for obstacle avoidance during Lloyd's algorithm
+
 
         
         
@@ -174,7 +176,7 @@ class MotionController:
                 dir = dir / np.linalg.norm(dir) # Normalize the direction
                 
                 # Quadratic repulsive conrtol 
-                repulsive_force = REPULSIVE_GAIN * ((D_MIN - dist) ** 2) * dir
+                repulsive_force = REPULSIVE_GAIN_FOR_LEVY * ((D_MIN - dist) ** 2) * dir
 
         return repulsive_force
 
@@ -258,6 +260,8 @@ class MotionController:
         Guides the robot towards the goal using a Lloyd-based control algorithm.
         If ring_radius > 0, uses a ring-shaped Gaussian PDF to form a circular formation, if = 0, uses a standard
         Gaussian PDF that guides the robot to the goal position.
+        Also integrates obstacle avoidance by combining the Lloyd control vector with the repulsive 
+        vector when near obstacles to better navigate around them.
         
         Args:
             robot_state: A numpy array or list containing the robot's current [x, y, theta].
@@ -321,8 +325,18 @@ class MotionController:
         if dist_to_centroid < 0.05:
             return np.array([0.0, 0.0])
                 
-        # 6. Unicycle commands [v, w]
-        target_theta = np.arctan2(cy - y, cx - x)
+        # Obstacle avoidance repulsive control
+        # 1. Compute repulsive vector
+        v_rep = self.obstacle_avoidance_control(robot_state, voronoi)
+        
+        # 2. Compute attractive vector towards the weighted centroid 
+        v_attr = np.array([cx - x, cy - y])
+        
+        # 3. Rresultant vector combining attraction to the centroid and repulsion from obstacles
+        final_vector = v_attr +  REPULSIVE_GAIN_FOR_LOYD * v_rep
+        
+        # 4. Unicycle commands [v, w] based on the final vector
+        target_theta = np.arctan2(final_vector[1], final_vector[0])
         angle_error = (target_theta - theta + np.pi) % (2 * np.pi) - np.pi
         
         w = ANG_VEL_GAIN * angle_error
