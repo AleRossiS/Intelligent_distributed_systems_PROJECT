@@ -33,6 +33,7 @@ class Robot:
     self.state_mode = "SEARCHING" # can be "SEARCHING", "INSPECTING", "TRASURE_FOUND"
     self.found_treasure = False
     self.target_treasure_pos = None
+    self.mapping_dir = None # Direction for mapping movement (1 or -1) that is clockwise or counterclockwise
 
     # Memory of inspected points and shared map 
     self.inspected_points = [] # List of (x, y) tuples representing points that this robot has inspected
