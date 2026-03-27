@@ -5,23 +5,28 @@ import config as cfg
 from shapely.geometry import Point, LineString, Polygon
 from shapely.ops import unary_union
 
+from ekf_localization import EKF
 
 class Robot:
   """
   A simple unicycle robot class for 2D simulation
   """ 
   
-  def __init__(self, robot_id, x = 0.0, y = 0.0, theta = 0.0, radius = cfg.ROBOT_RADIUS, color = 'blue'):
+  def __init__(self, robot_id, x = 0.0, y = 0.0, theta = 0.0, radius = cfg.ROBOT_RADIUS, color = 'blue', dt=0.1):
     
     # Robot attributes
     self.robot_id = robot_id
     self.state = np.array([x, y, theta], dtype=float) # [x, y, theta]
+    self.true_state = np.array([x, y, theta], dtype=float) # True state for simulation purposes (not accessible to the robot)
+    self.ekf = EKF(initial_state=self.state, dt=dt) # EKF instance for localization
     self.radius = radius
     self.color = color
     
     # Robot trajectory history for visualization
-    self.history_x = [self.state[0]]
-    self.history_y = [self.state[1]]
+    self.history_true_x = [self.true_state[0]]
+    self.history_true_y = [self.true_state[1]]
+    self.history_est_x = [self.state[0]]
+    self.history_est_y = [self.state[1]]
     
     self.other_robots_positions = {} # Dictionary to store positions of other robots {robot_id: (x, y)}
     self.id_to_call = None # ID of the robot to call for help when treasure is found
@@ -45,7 +50,7 @@ class Robot:
     self.is_transmitting = False # Flag to indicate if the robot is currently transmitting data
     
     
-  def update_pose(self, u, dt):
+  def update_pose(self, u, dt, camera_measurement=None):
     """
     Updates the pose using the unicycle model:
     
@@ -59,6 +64,31 @@ class Robot:
       u: control input [v, w]
       dt: time step
     """
+
+    # Simuliamo che le ruote del robot slittino un po' rispetto al comando 'u'
+    noise_v = np.random.normal(0, 0.05) # 5 cm/s di errore lineare
+    noise_w = np.random.normal(0, 0.05) # ~3 gradi/s di errore angolare
+
+    v_real = u[0] + noise_v
+    w_real = u[1] + noise_w
+
+    self.true_state[0] += v_real * np.cos(self.true_state[2]) * dt
+    self.true_state[1] += v_real * np.sin(self.true_state[2]) * dt
+    self.true_state[2] += w_real * dt
+    self.true_state[2] = (self.true_state[2] + np.pi) % (2 * np.pi) - np.pi
+
+    # EKF Prediction e update Step
+    self.ekf.predict(u) # EKF prediction step using the control input (odometry)
+    self.ekf.update(camera_measurement) # EKF update step using the camera measurement (if available)
+
+    self.state = np.copy(self.ekf.x_est) # Update the robot's estimated state with the EKF estimate
+
+    # Save true and estimated positions to the history lists
+    self.history_true_x.append(self.true_state[0])
+    self.history_true_y.append(self.true_state[1])
+    self.history_est_x.append(self.state[0])
+    self.history_est_y.append(self.state[1])
+    
     
     # State derivative
     self.state_dot = np.array([
@@ -67,20 +97,20 @@ class Robot:
         u[1]                           # theta_dot
     ]) 
     
-    # State update: Euler integration
-    self.state += self.state_dot * dt
+    # # State update: Euler integration
+    # self.state += self.state_dot * dt
     
-    #NB: i've just did:
-    # x_k+1 = x_k + x_dot * dt
-    # y_k+1 = y_k + y_dot * dt
-    # theta_k+1 = theta_k + theta_dot * dt
+    # #NB: i've just did:
+    # # x_k+1 = x_k + x_dot * dt
+    # # y_k+1 = y_k + y_dot * dt
+    # # theta_k+1 = theta_k + theta_dot * dt
     
-    # Normalize theta to be within [-pi, pi]
-    self.state[2] = (self.state[2] + np.pi) % (2 * np.pi) - np.pi
+    # # Normalize theta to be within [-pi, pi]
+    # self.state[2] = (self.state[2] + np.pi) % (2 * np.pi) - np.pi
     
-    # Save resulting position to the history lists
-    self.history_x.append(self.state[0])
-    self.history_y.append(self.state[1])
+    # # Save resulting position to the history lists
+    # self.history_x.append(self.state[0])
+    # self.history_y.append(self.state[1])
     
     
   def tick_timer(self):
@@ -285,33 +315,43 @@ class Robot:
   def draw(self, ax, show_history=True):
     """
     Draws the robot and its trajectory on a given Matplotlib axis
+    We are also drawing the true trajectory and the estimated trajectory in a lighter color to visualize the EKF performance (can be turned off if it gets too messy)
     
     Args:
       ax: Matplotlib axis to draw on
       show_history: if True, also draws the trajectory history of the robot
     """
-    x, y, theta = self.state
+    tx, ty, theta = self.true_state
     
-    # draw the robot as a circle with a line indicating the front direction
-    circle = plt.Circle((x, y), self.radius, 
+    # Disegna il robot REALE (Solido)
+    circle = plt.Circle((tx, ty), self.radius, 
                         facecolor=self.color, 
                         edgecolor='black', 
                         linewidth=1, 
                         fill=True, 
-                        alpha=1)
+                        alpha=0.7)
     ax.add_patch(circle)
     
-    front_x = x + self.radius * np.cos(theta)
-    front_y = y + self.radius * np.sin(theta)
-    ax.plot([x, front_x], [y, front_y], color='black', linewidth=2)
+    front_x = tx + self.radius * np.cos(theta)
+    front_y = ty + self.radius * np.sin(theta)
+    ax.plot([tx, front_x], [ty, front_y], color='black', linewidth=2)
+
+    # Disegna il robot STIMATO dall'EKF (Tratteggiato vuoto)
+    ex, ey, etheta = self.state
+    circle_est = plt.Circle((ex, ey), self.radius, facecolor='none', edgecolor=self.color, linewidth=2, linestyle='--', alpha=1.0)
+    ax.add_patch(circle_est)
+    front_ex = ex + self.radius * np.cos(etheta)
+    front_ey = ey + self.radius * np.sin(etheta)
+    ax.plot([ex, front_ex], [ey, front_ey], color=self.color, linestyle='--', linewidth=2)
     
     # Write robot ID and state mode above the robot
     label = f"R{self.robot_id}\n{self.state_mode}"
-    ax.text(x, y + self.radius * 1.4, label, ha='center', va='bottom', fontsize=8, color='black')
+    ax.text(tx, ty + self.radius * 1.4, label, ha='center', va='bottom', fontsize=8, color='black')
     
     # Plot robot trajectory
     if show_history:
-      ax.plot(self.history_x, self.history_y, color=self.color, linewidth=1.5, alpha=0.4, linestyle='-')
+      ax.plot(self.history_true_x, self.history_true_y, color=self.color, linewidth=1.5, alpha=0.4, linestyle='-')
+      # ax.plot(self.history_est_x, self.history_est_y, color=self.color, linewidth=1, alpha=0.8, linestyle=':') # Decommenta per vedere la scia dell'EKF
     
     
     ### THIS ALLOWS TO SEE THE INSPECTED POINTS OF EACH ROBOT (USE WITH CAUTION, IT CAN GET MESSY) ###
@@ -339,11 +379,11 @@ class Robot:
       alphas = [0.6, 0.3] # Corresponding alpha values for the circles
       
       for r_wave, a_wave in zip(radii, alphas):
-        tx_circle = plt.Circle((x, y), r_wave, color='magenta', fill=False, linestyle='-', linewidth=0.5, alpha=a_wave)
+        tx_circle = plt.Circle((tx, ty), r_wave, color='magenta', fill=False, linestyle='-', linewidth=0.5, alpha=a_wave)
         ax.add_patch(tx_circle)
         
       # text indicator for transmission TX
-      ax.text(x, y + self.radius * 3.75, "TX", ha='center', va='bottom', fontsize=10, color='magenta', fontweight='bold')
+      ax.text(tx, ty + self.radius * 3.75, "TX", ha='center', va='bottom', fontsize=10, color='magenta', fontweight='bold')
       
     # Draw the target position if known 
     if self.target_treasure_pos is not None:

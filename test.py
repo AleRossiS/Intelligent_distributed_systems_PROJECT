@@ -6,6 +6,8 @@ from voronoi_cells import VoronoiCell
 from motion_and_mapping import MotionController
 from broadcast_and_consensus import broadcast_data
 
+from ekf_localization import GlobalCamera
+
 import config as cfg
 
 plt.close('all')
@@ -29,6 +31,9 @@ env.add_obstacle([
     # --- BRACCIO SUPERIORE INTERNO (Ritorno alla punta) ---
     (1.2, -2.7), (0.9, -2.3), (0.7, -2.1)
 ])
+
+# SETUP TELECAMERA GLOBALE (Piazzata in alto a destra)
+global_camera = GlobalCamera(x=9.0, y=9.0, noise_std_x=0.05, noise_std_y=0.05, noise_std_theta=0.02)
 
 # --- IL PICCOLO CERCHIO ---
 cx, cy = -5.0, 7.0  # Coordinate del centro
@@ -124,11 +129,20 @@ for i in range(20000):
         
 
     # 4. AGGIORNO LA POSIZIONE DEI ROBOT
-    r1.update_pose(u1, dt)
-    r2.update_pose(u2, dt)
-    r3.update_pose(u3, dt)
+    # r1.update_pose(u1, dt)
+    # r2.update_pose(u2, dt)
+    # r3.update_pose(u3, dt)
+    for r, u in zip([r1, r2, r3], [u1, u2, u3]):
+        # La telecamera osserva il vero stato fisico del robot
+        z_camera = global_camera.get_measurement(r.true_state, real_obs_map)
+        
+        # Aggiorniamo la posa passandogli la misurazione
+        r.update_pose(u, dt, camera_measurement=z_camera)
+
     # 5. DISEGNIAMO AMBIENTE E ROBOT
     env.render(ax)
+    # Disegna la telecamera
+    ax.scatter(global_camera.pos.x, global_camera.pos.y, c='magenta', marker='s', s=100, label='Camera')
     
     # 6. DISEGNIAMO LE NUOVE CELLE DI VORONOI E I CENTROIDI
     vor_r1.plot_cells(ax, polygons=cella1, centroids=centroid1, cell_color='#ffffcc')
