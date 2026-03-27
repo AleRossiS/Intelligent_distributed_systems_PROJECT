@@ -39,7 +39,8 @@ class Robot:
     self.shared_map = [] # List of (x, y) tuples representing the combined map of all robots 
     
     # Data broadcasting parameters
-    self.tx_clock = random.randint(0, cfg.TX_INTERVAL_TICKS) #clk, randomized to avoid sync between robots at the start
+    offset = cfg.TX_INTERVAL_TICKS // cfg.NUM_ROBOTS
+    self.tx_clock = ((self.robot_id - 1) * offset) % cfg.TX_INTERVAL_TICKS # clk time at which the robot will transmit 
     self.is_transmitting = False # Flag to indicate if the robot is currently transmitting data
     
     

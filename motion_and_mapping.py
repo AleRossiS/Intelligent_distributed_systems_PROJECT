@@ -135,7 +135,7 @@ class MotionController:
         if abs(angle_error) > (np.pi / 4.0): 
             v = 0.0
         else:
-            v = LIN_VEL * max(0.0, np.cos(angle_error)**3) # Modulate linear velocity 
+            v = LIN_VEL * max(0.0, np.cos(angle_error)) # Modulate linear velocity 
             
         self.time_remaining -= dt # decrease time remaining 
 
