@@ -206,7 +206,7 @@ class MotionController:
         plt.show()
 
 
-    def wall_following_control(self, robot_state, closest_point):
+    def wall_following_control(self, robot_state, closest_point, m_dir = 1):
         """
         Control strategy for sliding along obstacles when in INSPECTING state.
         
@@ -231,8 +231,8 @@ class MotionController:
         nx, ny = dx / dist, dy / dist
         
         # 2. Compute tangent vector for sliding (CW direction)
-        # Note: Use (-ny, nx) for CCW direction
-        tx, ty = ny, -nx 
+        # Note: (-ny, nx) CCW direction, (ny, -nx) CW direction
+        tx, ty = - m_dir *ny, m_dir * nx 
         
         # 3. P-controller for distance correction
         error = dist - d_target
@@ -416,6 +416,7 @@ class MotionController:
         Returns:
             A numpy array [v, w] representing the linear and angular velocity commands for the robot.
         """
+        m_dir = 1 # Initialize variable for mapping direction, will be set when entering INSPECTING state
         
         # -- Obstacles sensing and Mapping #
         visible_hit_points = self.lidar_mapping(robot, inflated_map) # Get the visible hit points from the LiDAR mapping   
@@ -467,6 +468,10 @@ class MotionController:
                 # If new real obstacle point and not already inspected, switch to INSPECTING state to start mapping it
                 if not is_already_inspected:
                     robot.state_mode = "INSPECTING"
+                    
+                    # Randomly choose direction (clk or counterclk) to avoid all robots doing the same thing in mapping
+                    # Used later in the wall-following control to decide the sliding direction
+                    m_dir = robot.mapping_dir = np.random.choice([1, -1]) 
                     
                     for pt in visible_hit_points:
                         is_duplicate = False
@@ -537,7 +542,8 @@ class MotionController:
             else:
                 # If still in INSPECTING state, do wall-following control to slide along the obstacle and map it 
                 if closest_point is not None:
-                    return self.wall_following_control(robot.state, closest_point)
+                    
+                    return self.wall_following_control(robot.state, closest_point, m_dir)
                 else:
                     # Lost track of the wall
                     robot.state_mode = "SEARCHING"
