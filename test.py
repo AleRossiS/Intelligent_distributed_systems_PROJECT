@@ -277,8 +277,17 @@ while running:
     pygame.display.flip()
     clock.tick(60)
 
-    if step_counter % 20 == 0:
-        print(f"Step {step_counter} | R1: {r1.state_mode} | R2: {r2.state_mode} | R3: {r3.state_mode}")
+    if step_counter % 1 == 0:
+        def fmt_est(r):
+            est = getattr(r, 'consensus_treasure_pos', None)
+            return f"[{est[0]:.2f}, {est[1]:.2f}]" if est is not None else "[--.--, --.--]"
+        
+        print(f"Step {step_counter:04d} | "
+              f"R1: {r1.state_mode} {fmt_est(r1)} | "
+              f"R2: {r2.state_mode} {fmt_est(r2)} | "
+              f"R3: {r3.state_mode} {fmt_est(r3)}")
+        
+        # print(f"Step {step_counter} | R1: {r1.state_mode} | R2: {r2.state_mode} | R3: {r3.state_mode}")
     step_counter += 1
 
 pygame.quit()

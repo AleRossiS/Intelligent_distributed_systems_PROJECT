@@ -52,6 +52,7 @@ class Robot:
     self.consensus_treasure_pos = None
     self.target_treasure_pos = None
     self.gamma = 0.5
+    self.has_sensed_treasure = False
     
     
   def update_pose(self, u, dt, camera_measurement=None):

@@ -444,15 +444,42 @@ class MotionController:
         ## ---------------- FINITE STATE MACHINE (FSM) ---------------- ##
         
         # --- TREASURE DETECTION  --- #
-        if target_obj is not None and robot.state_mode in ["SEARCHING", "INSPECTING"]:
+        if target_obj is not None: # and robot.state_mode in ["SEARCHING", "INSPECTING"]:
+            treasure_center = np.array([target_obj.centroid.x, target_obj.centroid.y])
+            dist_to_treasure = np.linalg.norm(robot_pos_arr - treasure_center)
+            DETECTION_RADIUS = 2.5 
             
-            # Use the robot's internal sensor to detect and measure the target
-            if robot.measure_target_edge(target_obj, obstacles_map):
+            # Se il robot è vicino E non ha ancora fatto la SUA misurazione personale
+            if dist_to_treasure < DETECTION_RADIUS and not getattr(robot, 'has_sensed_treasure', False):
+                
+                # 1. Il robot fa la SUA lettura rumorosa
+                noise = np.random.normal(0, 1.0, 2) # Rumore di 1 metro per testare
+                my_measurement = treasure_center + noise
+                robot.has_sensed_treasure = True # Segna che ha fatto il suo lavoro
+                
+                # 2. Inietta la nuova informazione nel Consensus!
                 if getattr(robot, 'consensus_treasure_pos', None) is None:
-                    noise = np.random.normal(0, 0.5, size=2) # Simulate sensor noise
-                    robot.consensus_treasure_pos = np.array(robot.target_treasure_pos) + noise
-                    robot.target_treasure_pos = robot.consensus_treasure_pos
-                return np.array([0.0, 0.0]) # Stop to stabilize after finding the target
+                    # È il primo scopritore in assoluto
+                    robot.consensus_treasure_pos = my_measurement
+                else:
+                    # È un aiutante! Aveva la stima degli altri, ora la fonde con la sua lettura fresca
+                    robot.consensus_treasure_pos = (robot.consensus_treasure_pos + my_measurement) / 2.0
+                    
+                robot.target_treasure_pos = robot.consensus_treasure_pos
+                
+                # 3. Aggiorna lo stato
+                robot.state_mode = "TREASURE_FOUND"
+                robot.is_finder = True 
+                
+                return np.array([0.0, 0.0]) # Pausa per stabilizzare
+            
+            # # Use the robot's internal sensor to detect and measure the target
+            # if robot.measure_target_edge(target_obj, obstacles_map):
+            #     if getattr(robot, 'consensus_treasure_pos', None) is None:
+            #         noise = np.random.normal(0, 0.5, size=2) # Simulate sensor noise
+            #         robot.consensus_treasure_pos = np.array(robot.target_treasure_pos) + noise
+            #         robot.target_treasure_pos = robot.consensus_treasure_pos
+            #     return np.array([0.0, 0.0]) # Stop to stabilize after finding the target
                 
                     
         # --- 1. SEARCHING STATE ---
