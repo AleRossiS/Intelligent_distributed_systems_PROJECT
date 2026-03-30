@@ -48,6 +48,10 @@ class Robot:
     offset = cfg.TX_INTERVAL_TICKS // cfg.NUM_ROBOTS
     self.tx_clock = ((self.robot_id - 1) * offset) % cfg.TX_INTERVAL_TICKS # clk time at which the robot will transmit 
     self.is_transmitting = False # Flag to indicate if the robot is currently transmitting data
+
+    self.consensus_treasure_pos = None
+    self.target_treasure_pos = None
+    self.gamma = 0.5
     
     
   def update_pose(self, u, dt, camera_measurement=None):
@@ -183,6 +187,7 @@ class Robot:
         # --- FUTURE EXPANSION (Treasure Consensus) ---
         # 'consensus_H': self.H if hasattr(self, 'H') else None,
         # 'consensus_b': self.b if hasattr(self, 'b') else None,
+        'treasure_est': getattr(self, 'consensus_treasure_pos', None)
     }
       return payload
 
@@ -205,6 +210,16 @@ class Robot:
     # 2. Update the map with the received point using the merging function defined above
     incoming_map = payload.get('map_points')
     self.update_shared_map(incoming_map)
+
+    incoming_trasure = payload.get('treasure_est')
+    if incoming_trasure is not None:
+      if getattr(self, 'consensus_treasure_pos', None) is None:
+        self.consensus_treasure_pos = np.copy(incoming_trasure)
+        self.target_treasure_pos = self.consensus_treasure_pos
+        self.state_mode = "TREASURE_FOUND"
+      else:
+        self.consensus_treasure_pos = (1.0 - self.gamma) * self.consensus_treasure_pos + (self.gamma * incoming_trasure)
+        self.target_treasure_pos = self.consensus_treasure_pos
     
     
   def measure_target_edge(self, target_obj, obstacles_map):

@@ -448,6 +448,10 @@ class MotionController:
             
             # Use the robot's internal sensor to detect and measure the target
             if robot.measure_target_edge(target_obj, obstacles_map):
+                if getattr(robot, 'consensus_treasure_pos', None) is None:
+                    noise = np.random.normal(0, 0.5, size=2) # Simulate sensor noise
+                    robot.consensus_treasure_pos = np.array(robot.target_treasure_pos) + noise
+                    robot.target_treasure_pos = robot.consensus_treasure_pos
                 return np.array([0.0, 0.0]) # Stop to stabilize after finding the target
                 
                     
@@ -551,13 +555,13 @@ class MotionController:
                 
                             
         # --- 3. TREASURE FOUND STATE ---
-        elif robot.state_mode in "TREASURE_FOUND":
+        elif robot.state_mode == "TREASURE_FOUND":
             
-            if getattr(robot, 'is_finder', False) and not getattr(robot, 'has_called_help', False):
+            # if getattr(robot, 'is_finder', False) and not getattr(robot, 'has_called_help', False):
                 
-                # If the robot is the finder and has not called for help yet, broadcast a call to join the formation
-                robot.broadcast_help(all_robots)
-                robot.has_called_help = True # Ensure the call for help is only sent once
+            #     # If the robot is the finder and has not called for help yet, broadcast a call to join the formation
+            #     robot.broadcast_help(all_robots)
+            #     robot.has_called_help = True # Ensure the call for help is only sent once
             
             # Both the finder and the joining robots use the ring-based Lloyd control continuously.
             return self.formation_loyd_control(robot.state, robot.target_treasure_pos, voronoi, ring_radius=cfg.RING_RADIUS)
