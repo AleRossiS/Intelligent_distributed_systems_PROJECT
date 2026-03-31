@@ -53,6 +53,9 @@ class Robot:
     self.target_treasure_pos = None
     self.gamma = 0.5
     self.has_sensed_treasure = False
+    self.last_measure_time = 0.0
+    self.measure_interval = 2.0
+    self.local_measure_count = 1
     
     
   def update_pose(self, u, dt, camera_measurement=None):

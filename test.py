@@ -138,6 +138,11 @@ while running:
     cella2, centroid2 = vor_r2.compute_and_clip(pos_r2, robot_index=0, obstacles=inflated_obs_map)
     cella3, centroid3 = vor_r3.compute_and_clip(pos_r3, robot_index=0, obstacles=inflated_obs_map)
 
+    for r in [r1, r2, r3]:
+        if not hasattr(r, 'simulation_time'):
+            r.simulation_time = 0.0
+        r.simulation_time += dt
+
     u1 = ctrl1.get_control(r1, env.robots, dt, cella1[0], real_obs_map, inflated_obs_map, env.target_object)
     u2 = ctrl2.get_control(r2, env.robots, dt, cella2[0], real_obs_map, inflated_obs_map, env.target_object)
     u3 = ctrl3.get_control(r3, env.robots, dt, cella3[0], real_obs_map, inflated_obs_map, env.target_object)
@@ -279,8 +284,13 @@ while running:
 
     if step_counter % 1 == 0:
         def fmt_est(r):
+            has_sensed = getattr(r, 'has_sensed_treasure', False)
             est = getattr(r, 'consensus_treasure_pos', None)
-            return f"[{est[0]:.2f}, {est[1]:.2f}]" if est is not None else "[--.--, --.--]"
+
+            if has_sensed and est is not None:
+                return f"[{est[0]:.2f}, {est[1]:.2f}]" 
+            else:
+                return "[--.--, --.--]"
         
         print(f"Step {step_counter:04d} | "
               f"R1: {r1.state_mode} {fmt_est(r1)} | "
