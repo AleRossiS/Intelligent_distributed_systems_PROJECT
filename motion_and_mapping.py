@@ -15,7 +15,7 @@ MAX_TIME_EXPLOR = 10       # Maximum time to keep moving in the same direction d
 MIN_TIME_EXPLOR = 4        # Minimum time to keep moving in the same direction during exploration
 MAX_TIME_TREAS = 4       # Maximum time to keep moving in the same direction when treasure is found
 MIN_TIME_TREAS = 2        # Minimum time to keep moving in the same direction when treasure is found
-LIN_VEL = 2.0       # Linear velocity magnitude
+LIN_VEL = 1.0       # Linear velocity magnitude
 ANG_VEL_GAIN = 1  # Angular velocity gain for turning
 ALPHA = 1.5         # Lévy distribution parameter (0 < alpha <= 2)
 BETA = 1.0          # Lévy distribution skewness parameter (-1 <= beta <= 1)
@@ -447,7 +447,7 @@ class MotionController:
         if target_obj is not None: # and robot.state_mode in ["SEARCHING", "INSPECTING"]:
             treasure_center = np.array([target_obj.centroid.x, target_obj.centroid.y])
             dist_to_treasure = np.linalg.norm(robot_pos_arr - treasure_center)
-            DETECTION_RADIUS = 3 
+            DETECTION_RADIUS = cfg.BL_RANGE 
             
             # Se il robot è vicino E non ha ancora fatto la SUA misurazione personale
             if dist_to_treasure < DETECTION_RADIUS:

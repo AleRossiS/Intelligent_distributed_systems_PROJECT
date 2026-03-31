@@ -13,7 +13,15 @@ from ekf_localization import GlobalCamera
 import config as cfg
 
 pygame.init()
-WIDTH, HEIGHT = 800, 800
+
+
+span_x = cfg.X_LIM[1] - cfg.X_LIM[0]
+span_y = cfg.Y_LIM[1] - cfg.Y_LIM[0]
+
+WIDTH = 1200  # Mantieni la larghezza che preferisci
+HEIGHT = int(WIDTH * (span_y / span_x)) # L'altezza si adatta per mantenere le proporzioni reali
+
+
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Simulazione Robotica con Voronoi e EKF")
 clock = pygame.time.Clock()
@@ -42,35 +50,49 @@ def to_px(x, y):
 # Inizializzazione
 env = Environment()
 env.add_walls()
-#env.add_obstacle([(2, 0), (4, 0), (4, 2), (2, 2)])
-env.add_obstacle([(-6, -3), (-2, -3), (-2, -2.5), (-6, -2.5)])
-env.add_obstacle([
-    # --- BRACCIO SUPERIORE ESTERNO ---
-    (0.8, -1.8), (1.2, -2.0), (1.6, -2.3), (2.0, -2.6),
-    # --- DORSO ESTERNO (Guarda in basso a destra) ---
-    (2.0, -2.9), (1.8, -3.3), (1.5, -3.9), (1.2, -4.4),
-    # --- BRACCIO INFERIORE ESTERNO ---
-    (0.8, -4.4), (0.2, -4.1), (-0.3, -3.8),
-    # --- BRACCIO INFERIORE INTERNO (Rientro) ---
-    (0.0, -3.6), (0.3, -3.6), (0.6, -3.8),
-    # --- LA "PANCIA" DELLA C (Curva interna) ---
-    (1.0, -3.8), (1.3, -3.5), (1.4, -3.1), 
-    # --- BRACCIO SUPERIORE INTERNO (Ritorno alla punta) ---
-    (1.2, -2.7), (0.9, -2.3), (0.7, -2.1)
-])
+env.add_obstacle([(7, 1), (9, 1), (9, 3), (7, 3)])
+env.add_obstacle([(-9, -2), (-5, -2), (-5, -1.5), (-9, -1.5)])
+env.add_obstacle([(-5, -5.5), (-1, -5.5), (-1, -5), (-5, -5)])
+# env.add_obstacle([
+#     # --- BRACCIO SUPERIORE ESTERNO ---
+#     (0.8, -1.8), (1.2, -2.0), (1.6, -2.3), (2.0, -2.6),
+#     # --- DORSO ESTERNO (Guarda in basso a destra) ---
+#     (2.0, -2.9), (1.8, -3.3), (1.5, -3.9), (1.2, -4.4),
+#     # --- BRACCIO INFERIORE ESTERNO ---
+#     (0.8, -4.4), (0.2, -4.1), (-0.3, -3.8),
+#     # --- BRACCIO INFERIORE INTERNO (Rientro) ---
+#     (0.0, -3.6), (0.3, -3.6), (0.6, -3.8),
+#     # --- LA "PANCIA" DELLA C (Curva interna) ---
+#     (1.0, -3.8), (1.3, -3.5), (1.4, -3.1), 
+#     # --- BRACCIO SUPERIORE INTERNO (Ritorno alla punta) ---
+#     (1.2, -2.7), (0.9, -2.3), (0.7, -2.1)
+# ])
 
 
 # --- IL PICCOLO CERCHIO ---
-cx, cy = -5.0, 7.0  # Coordinate del centro
-raggio = 1.0       # Dimensione del raggio
-num_lati = 20      # Risoluzione del cerchio
+cx1, cy1 = -5.0, 7.0  # Coordinate del centro
+raggio1 = 1.0       # Dimensione del raggio
+num_lati1 = 20      # Risoluzione del cerchio
 
-cerchio = [
-    (cx + raggio * np.cos(2 * np.pi * i / num_lati), 
-     cy + raggio * np.sin(2 * np.pi * i / num_lati)) 
-    for i in range(num_lati)
+cerchio1 = [
+    (cx1 + raggio1 * np.cos(2 * np.pi * i / num_lati1), 
+     cy1 + raggio1 * np.sin(2 * np.pi * i / num_lati1)) 
+    for i in range(num_lati1)
 ]
-env.add_obstacle(cerchio)
+
+
+cx2, cy2 = 7.0, -6.0  # Coordinate del centro
+raggio2 = 1.0       # Dimensione del raggio
+num_lati2 = 20      # Risoluzione del cerchio
+
+cerchio2 = [
+    (cx2 + raggio2 * np.cos(2 * np.pi * i / num_lati2), 
+     cy2 + raggio2 * np.sin(2 * np.pi * i / num_lati2)) 
+    for i in range(num_lati2)
+]
+
+env.add_obstacle(cerchio1)
+env.add_obstacle(cerchio2)
 
 treasure_pos = (3, 3) # Posizione del tesoro
 env.add_target_object(cx=treasure_pos[0], cy=treasure_pos[1])
@@ -302,6 +324,3 @@ while running:
 
 pygame.quit()
 sys.exit()
-
-
-
