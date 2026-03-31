@@ -34,8 +34,8 @@ class Robot:
     self.is_finder = False # Flag to indicate if this robot is the one that found the treasure
     self.relocation_done = False # Flag to indicate if the robot has already relocated to P1 after finding the treasure
 
-    # State mode paraters
-    self.state_mode = "SEARCHING" # can be "SEARCHING", "INSPECTING", "TRASURE_FOUND"
+    # State mode parameters
+    self.state_mode = "SEARCHING" # can be "SEARCHING", "INSPECTING", "TREASURE_FOUND"
     self.found_treasure = False
     self.target_treasure_pos = None
     self.mapping_dir = None # Direction for mapping movement (1 or -1) that is clockwise or counterclockwise
@@ -196,6 +196,7 @@ class Robot:
   def receive_payload(self, payload):
     """
     Processes incoming data from another robot and updates internal state accordingly.
+    Also performs consensus update for the treasure position if the incoming payload contains an estimate.
     
     Args:
       payload: dict containing the data sent by another robot
@@ -212,14 +213,14 @@ class Robot:
     incoming_map = payload.get('map_points')
     self.update_shared_map(incoming_map)
 
-    incoming_trasure = payload.get('treasure_est')
-    if incoming_trasure is not None:
+    incoming_treasure = payload.get('treasure_est')
+    if incoming_treasure is not None:
       if getattr(self, 'consensus_treasure_pos', None) is None:
-        self.consensus_treasure_pos = np.copy(incoming_trasure)
+        self.consensus_treasure_pos = np.copy(incoming_treasure)
         self.target_treasure_pos = self.consensus_treasure_pos
         self.state_mode = "TREASURE_FOUND"
       else:
-        self.consensus_treasure_pos = (1.0 - self.gamma) * self.consensus_treasure_pos + (self.gamma * incoming_trasure)
+        self.consensus_treasure_pos = (1.0 - self.gamma) * self.consensus_treasure_pos + (self.gamma * incoming_treasure)
         self.target_treasure_pos = self.consensus_treasure_pos
     
     
