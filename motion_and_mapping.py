@@ -463,24 +463,23 @@ class MotionController:
         # --- TREASURE DETECTION  --- #
         if target_obj is not None: # and robot.state_mode in ["SEARCHING", "INSPECTING"]:
             treasure_center = np.array([target_obj.centroid.x, target_obj.centroid.y])
-            dist_to_treasure = np.linalg.norm(robot_pos_arr - treasure_center)
-            DETECTION_RADIUS = cfg.BL_RANGE 
+            dist_to_treasure = np.linalg.norm(robot_pos_arr - treasure_center) 
             
-            # Se il robot è vicino E non ha ancora fatto la SUA misurazione personale
-            if dist_to_treasure < DETECTION_RADIUS:
+            # Check if the robot is close enough to the treasure to detect it 
+            if dist_to_treasure < cfg.BL_RANGE :
 
-                current_time = getattr(robot, 'simulation_time', 0.0) # Assicurati di avere il tempo nel robot
+                current_time = getattr(robot, 'simulation_time', 0.0) 
 
                 if (current_time - robot.last_measure_time) >= robot.measure_interval:
                 
-                    # 1. Il robot fa la SUA lettura rumorosa
-                    noise = np.random.normal(0, 1.0, 2) # Rumore di 1 metro per testare
+                    # 1. Simulate a noisy measurement of the treasure position (in the robot's belief)
+                    noise = np.random.normal(0, 1.0, 2) # Big noise to make a test
                     my_measurement = treasure_center + noise
 
-                    # Incrementiamo il numero di misurazioni fatte da QUESTO robot
+                    # Increment the local measurement count for the robot
                     robot.local_measure_count += 1
                     
-                    # 2. Inietta la nuova informazione nel Consensus!
+                    # 2. Update the consensus estimate of the treasure position
                     if getattr(robot, 'consensus_treasure_pos', None) is None:
                         # È il primo scopritore in assoluto
                         robot.consensus_treasure_pos = my_measurement
@@ -490,12 +489,12 @@ class MotionController:
                         
                     robot.target_treasure_pos = robot.consensus_treasure_pos
                     robot.last_measure_time = current_time
-                    robot.has_sensed_treasure = True # Serve per la tua stampa a terminale
-                    # 3. Aggiorna lo stato
+                    robot.has_sensed_treasure = True # For visualization purposes
+                    # 3. Update the robot state to TREASURE_FOUND
                     robot.state_mode = "TREASURE_FOUND"
                     # robot.is_finder = True 
                     
-                    return np.array([0.0, 0.0]) # Pausa per stabilizzare
+                    return np.array([0.0, 0.0]) # Pause to stabilize
             
             # # Use the robot's internal sensor to detect and measure the target
             # if robot.measure_target_edge(target_obj, obstacles_map):
