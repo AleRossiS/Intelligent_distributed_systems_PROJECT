@@ -1,15 +1,20 @@
 import numpy as np
 from shapely.geometry import Point, LineString
 
+
+# VARIABLES #
+CAM_NOISE_STD = [0.1, 0.1, 0.05]
+EKF_PROCESS_NOISE = [0.05, 0.05, 0.01]
+
 class GlobalCamera:
     """
     Simulates a global camera in the environment subject to occlusions (ray-casting)
     and Gaussian noise.
     """
-    def __init__(self, x, y, noise_std_x=0.1, noise_std_y=0.1, noise_std_theta=0.05):
+    def __init__(self, x, y):
         self.pos = Point(x, y)
         # Standard deviations for the measurement noise
-        self.noise_std = np.array([noise_std_x, noise_std_y, noise_std_theta])
+        self.noise_std = np.array(CAM_NOISE_STD)
         
     def can_see(self, robot_pos_arr, obstacles_map):
         """
@@ -68,11 +73,11 @@ class EKF:
         
         # Process Noise Q: Uncertainty in the kinematics (slipping wheels, etc.)
         # Tuned to trust the heading a bit more than X/Y translation
-        self.Q = np.diag([0.05, 0.05, 0.01]) ** 2
+        self.Q = np.diag(EKF_PROCESS_NOISE) ** 2
         
         # Measurement Noise R: Uncertainty of the camera
         # Usually provided by the camera specs
-        self.R = np.diag([0.1, 0.1, 0.05]) ** 2  
+        self.R = np.diag(CAM_NOISE_STD) ** 2  * 10000000
         
         # Measurement Matrix H: Identity matrix since we measure exactly [x, y, theta]
         self.H = np.eye(3)

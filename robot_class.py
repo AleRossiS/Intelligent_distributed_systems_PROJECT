@@ -16,7 +16,7 @@ class Robot:
     
     # Robot attributes
     self.robot_id = robot_id
-    self.state = np.array([x, y, theta], dtype=float) # [x, y, theta]
+    self.state = np.array([x, y, theta], dtype=float) # [x, y, theta] EKF state estimate
     self.true_state = np.array([x, y, theta], dtype=float) # True state for simulation purposes (not accessible to the robot)
     self.ekf = EKF(initial_state=self.state, dt=dt) # EKF instance for localization
     self.radius = radius
@@ -185,13 +185,9 @@ class Robot:
       """
       payload = {
         'sender_id': self.robot_id,
-        'sender_pos': (self.state[0], self.state[1]), # Share current X, Y position # TODO: METTERR EKF ESTIM
+        'sender_pos': (self.state[0], self.state[1]), # Share current X, Y position estimated by the EKF
         'map_points': self.inspected_points,          # Share explored map
-        
-        # --- FUTURE EXPANSION (Treasure Consensus) ---
-        # 'consensus_H': self.H if hasattr(self, 'H') else None,
-        # 'consensus_b': self.b if hasattr(self, 'b') else None,
-        'treasure_est': getattr(self, 'consensus_treasure_pos', None)
+        'treasure_est': getattr(self, 'consensus_treasure_pos', None) # Share treasure position estimate 
     }
       return payload
 
@@ -332,82 +328,155 @@ class Robot:
       self.has_called_help = True
 
     
-  def draw(self, ax, show_history=True):
+  def draw(self, screen, world_to_pixel_func, font=None, camera_status=None, camera_pos=None):
     """
-    Draws the robot and its trajectory on a given Matplotlib axis
-    We are also drawing the true trajectory and the estimated trajectory in a lighter color to visualize the EKF performance (can be turned off if it gets too messy)
+    Draws the robot, its trajectory, and status text using Pygame.
     
     Args:
-      ax: Matplotlib axis to draw on
-      show_history: if True, also draws the trajectory history of the robot
+      screen: Pygame surface to draw on.
+      world_to_pixel_func: Function to convert world coordinates to pixel coordinates.
+      font: Pygame font object for rendering text (optional).
+      camera_status: Optional string indicating the camera status to display.
     """
-    tx, ty, theta = self.true_state
+    import pygame 
     
-    # Disegna il robot REALE (Solido)
-    circle = plt.Circle((tx, ty), self.radius, 
-                        facecolor=self.color, 
-                        edgecolor='black', 
-                        linewidth=1, 
-                        fill=True, 
-                        alpha=0.7)
-    ax.add_patch(circle)
+    # Map matplotlib string colors to RGB
+    color_map = {
+        'tab:blue': (31, 119, 180),
+        'tab:red': (214, 39, 40),
+        'tab:green': (44, 160, 44),
+        'black': (0, 0, 0)
+    }
+    color_rgb = color_map.get(self.color, (31, 119, 180)) # Default blue
     
-    front_x = tx + self.radius * np.cos(theta)
-    front_y = ty + self.radius * np.sin(theta)
-    ax.plot([tx, front_x], [ty, front_y], color='black', linewidth=2)
+    # Get pixel coordinates
+    x, y, theta = self.true_state # Use true_state for physical drawing
+    tx, ty = world_to_pixel_func(x, y)
+    
+    # Calculate dynamic radius in pixels
+    test_x, _ = world_to_pixel_func(x + self.radius, y)
+    radius_px = abs(test_x - tx)
 
-    # Disegna il robot STIMATO dall'EKF (Tratteggiato vuoto)
-    ex, ey, etheta = self.state
-    circle_est = plt.Circle((ex, ey), self.radius, facecolor='none', edgecolor=self.color, linewidth=2, linestyle='--', alpha=1.0)
-    ax.add_patch(circle_est)
-    front_ex = ex + self.radius * np.cos(etheta)
-    front_ey = ey + self.radius * np.sin(etheta)
-    ax.plot([ex, front_ex], [ey, front_ey], color=self.color, linestyle='--', linewidth=2)
+    # 1. Draw trajectory history (limit to last 200 points to save FPS)
+    if len(self.history_true_x) > 1:
+        pts = [world_to_pixel_func(hx, hy) for hx, hy in zip(self.history_true_x[-200:], self.history_true_y[-200:])]
+        if len(pts) > 1:
+            pygame.draw.lines(screen, color_rgb, False, pts, 2)
+            
+    # 2. Draw Estimated Position (EKF)
+    # Display where the robot "thinks" it is based on the EKF state (self.state)
+    ex, ey = self.state[0], self.state[1]
+    px_est, py_est = world_to_pixel_func(ex, ey)
     
-    # Write robot ID and state mode above the robot
-    label = f"R{self.robot_id}\n{self.state_mode}"
-    ax.text(tx, ty + self.radius * 1.4, label, ha='center', va='bottom', fontsize=8, color='black')
-    
-    # Plot robot trajectory
-    if show_history:
-      ax.plot(self.history_true_x, self.history_true_y, color=self.color, linewidth=1.5, alpha=0.4, linestyle='-')
-      # ax.plot(self.history_est_x, self.history_est_y, color=self.color, linewidth=1, alpha=0.8, linestyle=':') # Decommenta per vedere la scia dell'EKF
-    
-    
-    ### THIS ALLOWS TO SEE THE INSPECTED POINTS OF EACH ROBOT (USE WITH CAUTION, IT CAN GET MESSY) ###
-    # Draw inspected points
-    # if len(self.inspected_points) > 0:
-    #     pts = np.array(self.inspected_points)
-    #     ax.scatter(pts[:, 0], pts[:, 1], color=self.color, s=15, marker='x', alpha=0.8)
-        
-        
-    # # Draw shared map points (if any) with a smaller marker and some transparency
-    # if len(self.inspected_points) > 0:
-    #     pts = np.array(self.inspected_points)
-    #     ax.scatter(pts[:, 0], pts[:, 1], color=self.color, s=8, alpha=0.6, zorder=1)
-    
-    
-    ### TEST  TO SEE ONLY WHAT ROBOT 1 SEES ###
-    if self.robot_id == 1 and hasattr(self, 'shared_map') and len(self.shared_map) > 0:
-      pts = np.array(self.shared_map)
-      ax.scatter(pts[:, 0], pts[:, 1], color='black', s=20, marker='x', alpha=1.0, zorder=3)
+    # Use a light gray, empty circle to represent the estimated position
+    pygame.draw.circle(screen, (150, 150, 150), (px_est, py_est), radius_px, 2)
 
-    # Draw transmission indicator if the robot is currently transmitting
-    if getattr(self, 'is_transmitting', False):
-      # Draw expanding circles to represent the transmission signal
-      radii = [self.radius * 2.0, self.radius * 3.5]
-      alphas = [0.6, 0.3] # Corresponding alpha values for the circles
-      
-      for r_wave, a_wave in zip(radii, alphas):
-        tx_circle = plt.Circle((tx, ty), r_wave, color='magenta', fill=False, linestyle='-', linewidth=0.5, alpha=a_wave)
-        ax.add_patch(tx_circle)
-        
-      # text indicator for transmission TX
-      ax.text(tx, ty + self.radius * 3.75, "TX", ha='center', va='bottom', fontsize=10, color='magenta', fontweight='bold')
-      
-    # Draw the target position if known 
-    if self.target_treasure_pos is not None:
-      ax.scatter(self.target_treasure_pos[0], self.target_treasure_pos[1], 
-                 color=self.color, s=80, marker='o', edgecolors='black', zorder=10, alpha=0.5)
+    # 3. Draw robot body
+    pygame.draw.circle(screen, color_rgb, (tx, ty), radius_px)
+    pygame.draw.circle(screen, (0, 0, 0), (tx, ty), radius_px, 3) # Black outline
 
+    # 4. Draw orientation line
+    end_x = x + self.radius * np.cos(theta)
+    end_y = y + self.radius * np.sin(theta)
+    px_end, py_end = world_to_pixel_func(end_x, end_y)
+    pygame.draw.line(screen, (0, 0, 0), (tx, ty), (px_end, py_end), 3)
+
+    # 5. Draw transmission waves (single fast expansion animation)
+    
+    # Initialize animation variables if they don't exist
+    if not hasattr(self, 'wave_radius'):
+        self.wave_radius = radius_px
+        self.wave_active = False
+        self.prev_tx = False # Tracks previous frame transmission state
+
+    current_tx = getattr(self, 'is_transmitting', False)
+
+    # Trigger or restart the wave animation on a NEW transmission pulse
+    if current_tx and not self.prev_tx:
+        self.wave_active = True
+        self.wave_radius = radius_px # Reset radius to start a new wave
+
+    self.prev_tx = current_tx # Save state for the next frame
+
+    # Draw and expand the wave if animation is active
+    if self.wave_active:
+        max_wave_radius = radius_px * 2.5  # Very small maximum wave size for a quick burst
+        expansion_speed = 6                # High expansion speed for a fast animation
+        
+        # Calculate fading effect (alpha drops from 255 to 0)
+        fade_ratio = (self.wave_radius - radius_px) / (max_wave_radius - radius_px)
+        fade_ratio = max(0.0, min(1.0, fade_ratio)) # Clamp between 0 and 1
+        alpha = int(255 * (1 - fade_ratio))
+        
+        # Temporary surface for alpha channel
+        temp_surf = pygame.Surface((screen.get_width(), screen.get_height()), pygame.SRCALPHA)
+        
+        # Single wave pulse
+        pygame.draw.circle(temp_surf, (255, 0, 255, alpha), (tx, ty), int(self.wave_radius), 2)
+        
+        screen.blit(temp_surf, (0, 0))
+        
+        # Expand the wave for the next frame
+        self.wave_radius += expansion_speed
+        
+        # Stop animation and reset when the wave reaches max radius
+        if self.wave_radius > max_wave_radius:
+            self.wave_active = False
+            self.wave_radius = radius_px
+
+    # 6. Draw text info (State and Camera status)
+    if font is not None:
+        # Robot state mode
+        state_text = f"R{self.robot_id} {self.state_mode}"
+        text_surf = font.render(state_text, True, (0, 0, 0))
+        text_rect = text_surf.get_rect(center=(tx, ty - radius_px - 25))
+        pygame.draw.rect(screen, (255, 255, 255), text_rect.inflate(4, 2)) # White background
+        screen.blit(text_surf, text_rect)
+        
+        # Camera status (if provided)
+        if camera_status:
+            cam_color = (0, 200, 0) if "TRACKING" in camera_status else (200, 0, 0)
+            cam_surf = font.render(camera_status, True, cam_color)
+            cam_rect = cam_surf.get_rect(center=(tx, ty - radius_px - 10))
+            pygame.draw.rect(screen, (255, 255, 255), cam_rect.inflate(4, 2))
+            screen.blit(cam_surf, cam_rect)
+              
+    # 7. Draw mapped points
+    
+    # --- VISUALIZATION FLAG ---
+    # True = Show the 'inspected_points' of ALL robots (Individual mapping)
+    # False = Show only the 'shared_map' of Robot 1 (Consensus mapping)
+    SHOW_ALL_INSPECTED_POINTS = True 
+    
+    size = 3
+    thickness = 2
+
+    if SHOW_ALL_INSPECTED_POINTS:
+        # Display points inspected individually by each robot
+        if hasattr(self, 'inspected_points') and len(self.inspected_points) > 0:
+            for pt in self.inspected_points:
+                px, py = world_to_pixel_func(pt[0], pt[1])
+
+                # Use a dark gray color
+                pygame.draw.line(screen, (0, 0, 0), (px - size, py - size), (px + size, py + size), thickness)
+                pygame.draw.line(screen, (0, 0, 0), (px - size, py + size), (px + size, py - size), thickness)
+                
+    else:
+        # Display only the shared, fused map of Robot 1 (Useful for consensus debugging)
+        if self.robot_id == 1 and hasattr(self, 'shared_map') and len(self.shared_map) > 0:
+            for pt in self.shared_map:
+                px, py = world_to_pixel_func(pt[0], pt[1])
+
+                # Use black color
+                pygame.draw.line(screen, (0, 0, 0), (px - size, py - size), (px + size, py + size), thickness)
+                pygame.draw.line(screen, (0, 0, 0), (px - size, py + size), (px + size, py - size), thickness)
+                
   
+    # 8. Draw Line of Sight to the Global Camera
+    # If the camera is tracking the robot, draw a line connecting them
+    if camera_status == "TRACKING" and camera_pos is not None:
+        c_x, c_y = camera_pos[0], camera_pos[1]
+        cam_px = world_to_pixel_func(c_x, c_y)
+        
+        # Thin green line to indicate active tracking
+        pygame.draw.line(screen, (255, 0, 255), (tx, ty), cam_px, 1)
