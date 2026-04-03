@@ -348,53 +348,70 @@ class MotionController:
     def lidar_mapping(self, robot, collision_map):
         """
         Simulates a 360-degree LiDAR sensor using ray-casting to detect obstacles and update the robot's internal map.
-        The method casts rays in all directions, checks for intersections with the obstacles, and updates the robot's
-        internal map with the detected points.
+        The simulation distinguishes between the true physical position of the robot (to detect obstacles) 
+        and the estimated position (to map the detected points).
+        This function aslo handles the fact that the robot computes its state estimation using an EKF, so the detected points are projected in the robot's belief of the world, which can differ from the true world due to estimation errors.
         
         Args:
             robot: The Robot object for which to perform LiDAR mapping.
             collision_map: A Shapely Polygon representing the collision map.
         
         Returns:
-            A numpy array of shape (N, 2) containing the coordinates of the detected obstacle points.
+            A numpy array of shape (N, 2) containing the coordinates of the detected obstacle points (Belief).
         """
         
-        robot_pos_arr = np.array([robot.state[0], robot.state[1]])
-        robot_pos_pt = Point(robot_pos_arr)
+        # Estraiamo gli stati (Reale vs Stimato)
+        true_x, true_y, true_theta = robot.true_state
+        est_x, est_y, est_theta = robot.state
+        
+        true_pos_pt = Point(true_x, true_y)
         visible_hit_points = []
-    
             
         # Ray casting
         if not collision_map.is_empty:
             num_rays = int(360 / cfg.RAY_CASTING_RESOLUTION)
-            angles = np.linspace(0, 2 * np.pi, num_rays, endpoint=False)
+            # Questi sono gli angoli *relativi* (locali) dei sensori rispetto al "muso" del robot
+            local_angles = np.linspace(0, 2 * np.pi, num_rays, endpoint=False)
             
-            for angle in angles:
-                # Create a single LiDAR ray up to SENSING_RANGE
-                ray_end = (robot_pos_arr[0] + np.cos(angle) * cfg.SENSING_RANGE, 
-                           robot_pos_arr[1] + np.sin(angle) * cfg.SENSING_RANGE)
-                ray_line = LineString([robot_pos_arr, ray_end])
+            for local_angle in local_angles:
                 
-                # Check if the ray hits an obstacle
-                if ray_line.intersects(collision_map):
+                # --- 1. MONDO FISICO (Sensore Reale) ---
+                true_ray_angle = true_theta + local_angle
+                
+                # Create a single LiDAR ray up to SENSING_RANGE in the real world
+                ray_end_true = (true_x + np.cos(true_ray_angle) * cfg.SENSING_RANGE, 
+                                true_y + np.sin(true_ray_angle) * cfg.SENSING_RANGE)
+                ray_line_true = LineString([(true_x, true_y), ray_end_true])
+                
+                # Check if the ray hits an obstacle physically
+                if ray_line_true.intersects(collision_map):
                     
                     # Intersect with the BOUNDARY of the obstacles to get the exact hit point
-                    hit_geom = ray_line.intersection(collision_map.boundary)
+                    hit_geom = ray_line_true.intersection(collision_map.boundary)
                     
-                    hit_point = None
+                    hit_point_true = None
                     if hit_geom.geom_type == 'Point':
-                        hit_point = hit_geom
+                        hit_point_true = hit_geom
                     elif hit_geom.geom_type in ['MultiPoint', 'GeometryCollection']:
                         # If the ray pierces multiple walls, get the closest hit point
-                        # NOTE: Use .geoms to iterate over the geometry collection
                         hit_points_list = [pt for pt in hit_geom.geoms if pt.geom_type == 'Point']
                         if hit_points_list:
-                            hit_point = min(hit_points_list, key=lambda pt: robot_pos_pt.distance(pt))
+                            hit_point_true = min(hit_points_list, key=lambda pt: true_pos_pt.distance(pt))
+                    
+                    # --- 2. MISURA E PROIEZIONE NELLA MENTE DEL ROBOT (Mappatura) ---
+                    if hit_point_true is not None:
+                        # Quanto è distante l'ostacolo secondo il sensore?
+                        measured_dist = np.sqrt((hit_point_true.x - true_x)**2 + (hit_point_true.y - true_y)**2)
                         
-                    # If we found a valid hit point on the wall
-                    if hit_point is not None:
-                        coord = (hit_point.x, hit_point.y)
-                        visible_hit_points.append(coord)
+                        # In che direzione sto guardando *secondo l'EKF*?
+                        est_ray_angle = est_theta + local_angle
+                        
+                        # Dove credo che si trovi questo punto nel mondo?
+                        est_hit_x = est_x + measured_dist * np.cos(est_ray_angle)
+                        est_hit_y = est_y + measured_dist * np.sin(est_ray_angle)
+                        
+                        # Aggiungo il punto alla mappa del robot
+                        visible_hit_points.append((est_hit_x, est_hit_y))
                         
         return np.array(visible_hit_points) if len(visible_hit_points) > 0 else np.array([])
     
