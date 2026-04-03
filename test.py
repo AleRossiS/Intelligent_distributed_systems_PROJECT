@@ -153,7 +153,7 @@ while running:
 
     # Aggiorna lo schermo a 60 FPS
     pygame.display.flip()
-    clock.tick(60)
+    clock.tick(30)
 
     # --- 6. PRINT IN CONSOLE ---
     if step_counter % 1 == 0:

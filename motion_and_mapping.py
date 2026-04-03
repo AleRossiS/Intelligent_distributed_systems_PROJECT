@@ -569,7 +569,7 @@ class MotionController:
             
             # Check for loop closure
             loop_closed = False
-            IGNORE_RADIUS_LOOP = cfg.ROBOT_RADIUS * 1.5 
+            IGNORE_RADIUS_LOOP = cfg.ROBOT_RADIUS * 0.5
             safe_history_index = len(robot.shared_map) - 50 # Only check for loop closure with points that are at least 50 steps old to avoid false positives with current mapping area
             
             if safe_history_index > 0 and target_arr is not None:
