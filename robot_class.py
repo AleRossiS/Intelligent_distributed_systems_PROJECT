@@ -74,8 +74,8 @@ class Robot:
     """
 
     # Simuliamo che le ruote del robot slittino un po' rispetto al comando 'u'
-    noise_v = np.random.normal(0, 0.05) # 5 cm/s di errore lineare
-    noise_w = np.random.normal(0, 0.05) # ~3 gradi/s di errore angolare
+    noise_v = np.random.normal(0, 0.05)  # 5 cm/s di errore lineare
+    noise_w = np.random.normal(0, 0.05)  # ~3 gradi/s di errore angolare
 
     v_real = u[0] + noise_v
     w_real = u[1] + noise_w

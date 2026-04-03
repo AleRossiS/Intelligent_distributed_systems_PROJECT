@@ -3,8 +3,10 @@ from shapely.geometry import Point, LineString
 
 
 # VARIABLES #
-CAM_NOISE_STD = [0.1, 0.1, 0.05]
-EKF_PROCESS_NOISE = [0.05, 0.05, 0.01]
+CAM_NOISE_STD = np.array([0.1, 0.1, 0.05]) * 1e-9
+EKF_PROCESS_NOISE = np.array([0.05, 0.05, 0.01]) * 1e-9
+
+
 
 class GlobalCamera:
     """
@@ -77,7 +79,7 @@ class EKF:
         
         # Measurement Noise R: Uncertainty of the camera
         # Usually provided by the camera specs
-        self.R = np.diag(CAM_NOISE_STD) ** 2  * 10000000
+        self.R = np.diag(CAM_NOISE_STD) ** 2  
         
         # Measurement Matrix H: Identity matrix since we measure exactly [x, y, theta]
         self.H = np.eye(3)

@@ -10,10 +10,10 @@ SENSING_RANGE = 3.0
 ROBOT_RADIUS = 0.5
 OBS_INFLATION_RADIUS = 0.5 # should be = ROBOT_RADIUS to ensure safety
 DIST_BTW_ROBOTS = 0.1 # Minimum distance to maintain between robots to avoid collisions
-BL_RANGE = SENSING_RANGE * 0.2  # radius of the sensing range for the treasure detecting
+BL_RANGE = SENSING_RANGE * 0.8  # radius of the sensing range for the treasure detecting
 
 NUM_ROBOTS = 3
-TX_INTERVAL_TICKS = NUM_ROBOTS * 5 # Number of simulation steps between each broadcast opportunity for the robots
+TX_INTERVAL_TICKS = NUM_ROBOTS * 1 # Number of simulation steps between each broadcast opportunity for the robots
 
 # --- MAPPING SETTINGS ---
 MAP_RESOLUTION =ROBOT_RADIUS * 0.5 # Distance between points in the generated map
@@ -23,4 +23,6 @@ MAP_RESOLUTION =ROBOT_RADIUS * 0.5 # Distance between points in the generated ma
 RAY_CASTING_RESOLUTION = 10.0 # degrees between rays 
 
 # --- FORMATION CONTROL SETTINGS ---
-RING_RADIUS = 3.0 # Distance from the goal at which the robot is considered
+RING_RADIUS = BL_RANGE * 0.8 # Distance from the goal at which the robot is considered
+
+
