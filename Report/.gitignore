@@ -17,3 +17,8 @@
 *.ilg
 *.ind
 *.nlo
+*.wcdetail
+*.wcdetail-*
+*.wcidx
+*.wcidx-*
+*.xwm
