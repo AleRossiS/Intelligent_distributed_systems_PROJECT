@@ -52,6 +52,7 @@
 \RequirePackage{cleveref}
 \RequirePackage{gensymb}
 \RequirePackage{textcomp}
+\RequirePackage{enumitem}
 \RequirePackage[version=4]{mhchem}
 \RequirePackage[scaled]{helvet}
 \RequirePackage[T1]{fontenc}

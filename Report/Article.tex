@@ -67,24 +67,26 @@ The simulation is performed in a 2D environment filled with obstacles emulating 
     \item Treasure found: once the target is found, all agents converge to the estimated position and further refine the estimate by iterating the consensus algorithm.
 \end{itemize}
 
-Just for kicks here's a citation \cite{Gustafsson2016}. And a reference to a supplement \cref{note:Note1}. And \nameref{note:Note1}.
+\noindent Position estimation is performed by sensor fusion, through the EFK, combining odometry and a camera-based measurement, positioned in the top right corner and can be seen in Figure \ref{fig:environment}. Through raycasting, occlusions are taken into account, so that the position measurement is not available when the line of sight is blocked by an obstacle, hence the robots will display a "Tracking/No signal" label. Obstacle avoidance is performed through a control loop implemented in the "Searching" state, which applies a repulsive force when an obstacle enters the sensing range of the lidar sensor. Through the "Inspecting" state, 
 
 
 
-\begin{figure}%[tbhp]
+
+
+\begin{figure}[H]
 \centering
-\includegraphics[width=.8\linewidth]{Figures/Figure_1}
-\caption{Placeholder image of Iris with a long example caption to show justification setting.}
-\label{fig:computerNo}
+\includegraphics[width=.8\linewidth]{Figures/environment.png}
+\caption{Simulation environment}
+\label{fig:environment}
 \end{figure}
 
 
 
-Figure \ref{fig:computerNo} shows an example of how to insert a column-wide figure. To insert a figure wider than one column, please use the \verb|\begin{figure*}...\end{figure*}| environment. Figures wider than one column should be sized to 11.4 cm or 17.8 cm wide. Use \verb|\begin{SCfigure*}...\end{SCfigure*}| for a wide figure with side captions.
+Figure \ref{fig:environment} shows an example of how to insert a column-wide figure. To insert a figure wider than one column, please use the \verb|\begin{figure*}...\end{figure*}| environment. Figures wider than one column should be sized to 11.4 cm or 17.8 cm wide. Use \verb|\begin{SCfigure*}...\end{SCfigure*}| for a wide figure with side captions.
 
 \section*{Conclusions}
 
-blablaba \ref{fig:computerNo} 
+blablaba \ref{fig:environment} 
 \blindtext
 
 \subsection*{Blabla} 
@@ -92,7 +94,7 @@ blablaba \ref{fig:computerNo}
 
 \section*{Conclusions}
 
-blablaba \ref{fig:computerNo}
+blablaba \ref{fig:environment}
 \blindtext
 
 \begin{acknowledgements}

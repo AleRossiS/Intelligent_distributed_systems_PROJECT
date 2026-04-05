@@ -84,8 +84,8 @@ class Environment:
         self.add_obstacle([(min_x + wall_thickness, min_y), (min_x, min_y), 
                            (min_x, max_y), (min_x + wall_thickness, max_y)])
         # Right wall
-        self.add_obstacle([(max_x, min_y), (max_x + wall_thickness, min_y), 
-                           (max_x + wall_thickness, max_y), (max_x, max_y)])
+        self.add_obstacle([(max_x, min_y), (max_x - wall_thickness, min_y), 
+                           (max_x - wall_thickness, max_y), (max_x, max_y)])
 
     def add_target_object(self, cx, cy, radius=0.4):
         """
