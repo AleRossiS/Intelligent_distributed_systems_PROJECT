@@ -39,6 +39,9 @@
 \RequirePackage{amsmath,amsfonts,amssymb}
 \RequirePackage{mathptmx}
 
+%% Hyperlinking
+\RequirePackage[colorlinks=true, allcolors=blue]{hyperref}
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Henriques lab dependencies - Start %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -56,6 +59,7 @@
 \RequirePackage[version=4]{mhchem}
 \RequirePackage[scaled]{helvet}
 \RequirePackage[T1]{fontenc}
+\RequirePackage{graphics}
 \RequirePackage{lettrine} % For dropped capitals
 \RequirePackage[rightcaption]{sidecap} % For sidecaptions
 \RequirePackage[misc]{ifsym} % For the \Letter symbol
@@ -78,8 +82,7 @@
 
 \DeclareUnicodeCharacter{00B0}{\degree}
 
-%% Hyperlinking
-\RequirePackage[colorlinks=true, allcolors=blue]{hyperref}
+
 
 %% Ref to Sup
 \RequirePackage{nameref}
@@ -328,7 +331,7 @@
   \@maketitle
 \fi
   \thispagestyle{plain}\@thanks
-  \endgroup
+  % \endgroup
   \setcounter{footnote}{0}\let\maketitle\relax\let\@maketitle\relax
   \gdef\@thanks{}\gdef\@author{}\gdef\@title{}\let\thanks\relax
 }

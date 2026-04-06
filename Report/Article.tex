@@ -1,4 +1,4 @@
-\documentclass[times, twoside, watermark]{zHenriquesLab-StyleBioRxiv}
+\documentclass[times, twoside]{zHenriquesLab-StyleBioRxiv}
 
 \usepackage{blindtext}
 
@@ -69,33 +69,24 @@ The simulation is performed in a 2D environment filled with obstacles emulating 
 
 \noindent Position estimation is performed by sensor fusion, through the EFK, combining odometry and a camera-based measurement, positioned in the top right corner and can be seen in Figure \ref{fig:environment}. Through raycasting, occlusions are taken into account, so that the position measurement is not available when the line of sight is blocked by an obstacle, hence the robots will display a "Tracking/No signal" label. Obstacle avoidance is performed through a control loop implemented in the "Searching" state, which applies a repulsive force when an obstacle enters the sensing range of the lidar sensor. Through the "Inspecting" state, 
 
-
-
-
-
-\begin{figure}[H]
+\begin{figure}
 \centering
 \includegraphics[width=.8\linewidth]{Figures/environment.png}
 \caption{Simulation environment}
 \label{fig:environment}
 \end{figure}
 
+\section*{Model and methods}
 
+\subsection*{Extended Kalman Filter}
 
-Figure \ref{fig:environment} shows an example of how to insert a column-wide figure. To insert a figure wider than one column, please use the \verb|\begin{figure*}...\end{figure*}| environment. Figures wider than one column should be sized to 11.4 cm or 17.8 cm wide. Use \verb|\begin{SCfigure*}...\end{SCfigure*}| for a wide figure with side captions.
+\subsection*{Voronoi cells}
 
-\section*{Conclusions}
-
-blablaba \ref{fig:environment} 
-\blindtext
-
-\subsection*{Blabla} 
-\blindtext
+\subsection*{Lèvy flight}
 
 \section*{Conclusions}
 
-blablaba \ref{fig:environment}
-\blindtext
+
 
 \begin{acknowledgements}
 \blindtext
@@ -110,17 +101,17 @@ blablaba \ref{fig:environment}
 \onecolumn
 \newpage
 
-\section*{Word Counts}
-This section is \textit{not} included in the word count. 
-\subsection*{Notes on Nature Methods Brief Communication}
-\begin{itemize}
-\item Abstract: 3 sentences, 70 words.
-\item Main text: 3 pages, 2 figures, 1000-1500 words, more figures possible if under 3 pages
-\end{itemize}
+% \section*{Word Counts}
+% This section is \textit{not} included in the word count. 
+% \subsection*{Notes on Nature Methods Brief Communication}
+% \begin{itemize}
+% \item Abstract: 3 sentences, 70 words.
+% \item Main text: 3 pages, 2 figures, 1000-1500 words, more figures possible if under 3 pages
+% \end{itemize}
 
-\subsection*{Statistics on word count}
-\detailtexcount
-\newpage
+% \subsection*{Statistics on word count}
+% \detailtexcount
+% \newpage
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Supplementary Information %
