@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # 1. Carica i Dati
-with open('experiment_results2.pkl', 'rb') as f:
+with open('experiment_results4.pkl', 'rb') as f:
     data = pickle.load(f)
 
 runs_error = data['runs_error']
@@ -18,7 +18,7 @@ plt.rcParams.update({'font.size': 14, 'font.family': 'serif'})
 # L'array runs_error contiene np.nan (vuoto) prima della scoperta.
 # Per mostrare la convergenza, allineiamo tutte le run partendo
 # dal momento in cui ogni sciame ha trovato il tesoro (Time=0)
-OBSERVATION_WINDOW = 1500
+OBSERVATION_WINDOW = 2000
 aligned_errors = []
 
 for run_err in runs_error:

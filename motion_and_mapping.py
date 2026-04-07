@@ -473,7 +473,7 @@ class MotionController:
                 if (current_time - robot.last_measure_time) >= robot.measure_interval:
                 
                     # 1. Simulate a noisy measurement of the treasure position (in the robot's belief)
-                    noise = np.random.normal(0, 1.0, 2) # Big noise to make a test
+                    noise = np.random.normal(0, 0.5, 2) # Big noise to make a test 
                     my_measurement = treasure_center + noise
 
                     # Increment the local measurement count for the robot
