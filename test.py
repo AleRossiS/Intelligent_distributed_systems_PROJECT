@@ -151,7 +151,7 @@ while running:
     cam_px = env.world_to_pixel(global_camera.pos.x, global_camera.pos.y)
     pygame.draw.rect(screen, (255, 0, 255), (cam_px[0]-5, cam_px[1]-5, 10, 10))
 
-    # Aggiorna lo schermo a 60 FPS
+    # Aggiorna lo schermo a 30 FPS
     pygame.display.flip()
     clock.tick(30)
 
