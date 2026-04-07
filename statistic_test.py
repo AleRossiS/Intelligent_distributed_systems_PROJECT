@@ -20,7 +20,7 @@ import config as cfg
 
 # cinfigurazione per i test statistici
 HEADLESS_MODE = True
-NUM_RUNS = 10
+NUM_RUNS = 100
 MAX_STEPS = 3000
 
 # =================================================================

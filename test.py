@@ -44,15 +44,15 @@ env.add_obstacle(cerchio1)
 env.add_obstacle(cerchio2)
 
 # Tesoro
-treasure_pos = (12, -7)
+treasure_pos = (11.5, -5)
 env.add_target_object(cx=treasure_pos[0], cy=treasure_pos[1])
 
 # --- 3. SETUP ENTI E CONTROLLORI ---
 global_camera = GlobalCamera(x=14.0, y=9.0)
 
-r1 = Robot(robot_id=1, x=-1.0, y=3.0, color='tab:red')
-r2 = Robot(robot_id=2, x=0.0, y=1.0, color='tab:blue')
-r3 = Robot(robot_id=3, x=-7.5, y=-7.5, color='tab:green') 
+r1 = Robot(robot_id=1, x=-7.0, y=3.0, color='tab:red')
+r2 = Robot(robot_id=2, x=-6.0, y=1.0, color='tab:blue')
+r3 = Robot(robot_id=3, x=-8.5, y=2.5, color='tab:green') 
 
 env.add_robot(r1)
 env.add_robot(r2)

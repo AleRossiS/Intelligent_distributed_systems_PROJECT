@@ -534,7 +534,7 @@ class MotionController:
                             robot.inspected_points.append(pt) 
                             robot.update_shared_map([pt])
                             
-                    return np.array([0.0, 0.0]) # Stop to stabilizee
+                    return np.array([0.0, 0.0]) # Stop to stabilize
 
             # Default: Levy flight exploration, if no new real obstacles are detected in the line of sight
             return self.levy_control(robot.state, dt, voronoi, min_time=MIN_TIME_EXPLOR, max_time=MAX_TIME_EXPLOR)
