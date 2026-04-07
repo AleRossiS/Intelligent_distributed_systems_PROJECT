@@ -211,4 +211,4 @@ class VoronoiCell:
         for centroid in centroids:
             if not np.isnan(centroid).any():
                 cx, cy = world_to_pixel_func(centroid[0], centroid[1])
-                pygame.draw.circle(screen, (255, 0, 0), (cx, cy), 4) # Red dot
+                pygame.draw.circle(screen, (0, 0, 0), (cx, cy), 4) # Red dot
