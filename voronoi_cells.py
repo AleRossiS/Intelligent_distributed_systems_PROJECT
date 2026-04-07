@@ -87,6 +87,10 @@ class VoronoiCell:
           est_hit_x = est_x + measured_dist * np.cos(est_ray_angle)
           est_hit_y = est_y + measured_dist * np.sin(est_ray_angle)
           
+          noise = np.random.normal(0, cfg.LIDAR_NOISE_STD, 2) # Add noise to the measurement
+          est_hit_x += noise[0]   
+          est_hit_y += noise[1]   
+          
           # Add the hit point to the list of vertices for the visibility polygon
           ray_vertices.append((est_hit_x, est_hit_y))
       
@@ -149,8 +153,15 @@ class VoronoiCell:
         vor_poly = Polygon([vor.vertices[v] for v in region_vertices_indices])
         vor_poly = vor_poly.buffer(-cfg.DIST_BTW_ROBOTS)
           
-        # 2. Ray Casting (QUI AVVIENE LA MAGIA DELLA SLAM)
+        # 2. Ray Casting 
         vis_poly = self.ray_casting_polygon(true_state, est_state, obstacles)
+        
+        # To solve a shapley fallback due to LiDAR noise
+        if getattr(vis_poly, 'is_valid', False) == False:
+            vis_poly = vis_poly.buffer(0)
+            
+        if getattr(vor_poly, 'is_valid', False) == False:
+            vor_poly = vor_poly.buffer(0)
         
         # 3. Clipping Voronoi cell with visibility polygon 
         current_poly = vor_poly.intersection(vis_poly)

@@ -265,7 +265,7 @@ class Robot:
     ray_line = LineString([robot_pos, ray_end])
     
     
-    # 4. Build Collision Map (MODIFICATO: non serve più fondere nulla!)
+    # 4. Build Collision Map 
     collision_map = obstacles_map 
         
         
@@ -304,6 +304,7 @@ class Robot:
       return True
         
     return False # If we hit something else or nothing at all, the target is not detected
+
 
   def broadcast_help(self, all_robots):
     """

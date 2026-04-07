@@ -360,7 +360,7 @@ class MotionController:
             A numpy array of shape (N, 2) containing the coordinates of the detected obstacle points (Belief).
         """
         
-        # Estraiamo gli stati (Reale vs Stimato)
+        # Extract true and estimated states
         true_x, true_y, true_theta = robot.true_state
         est_x, est_y, est_theta = robot.state
         
@@ -370,12 +370,12 @@ class MotionController:
         # Ray casting
         if not collision_map.is_empty:
             num_rays = int(360 / cfg.RAY_CASTING_RESOLUTION)
-            # Questi sono gli angoli *relativi* (locali) dei sensori rispetto al "muso" del robot
+
             local_angles = np.linspace(0, 2 * np.pi, num_rays, endpoint=False)
             
             for local_angle in local_angles:
                 
-                # --- 1. MONDO FISICO (Sensore Reale) ---
+                # --- 1. Real Measurement ---
                 true_ray_angle = true_theta + local_angle
                 
                 # Create a single LiDAR ray up to SENSING_RANGE in the real world
@@ -398,35 +398,35 @@ class MotionController:
                         if hit_points_list:
                             hit_point_true = min(hit_points_list, key=lambda pt: true_pos_pt.distance(pt))
                     
-                    # --- 2. MISURA E PROIEZIONE NELLA MENTE DEL ROBOT (Mappatura) ---
+                    # --- 2. Projection in the Robot's EKF estimate ---
                     if hit_point_true is not None:
-                        # Quanto è distante l'ostacolo secondo il sensore?
-                        measured_dist = np.sqrt((hit_point_true.x - true_x)**2 + (hit_point_true.y - true_y)**2)
                         
-                        # In che direzione sto guardando *secondo l'EKF*?
+                        measured_dist = np.sqrt((hit_point_true.x - true_x)**2 + (hit_point_true.y - true_y)**2)
                         est_ray_angle = est_theta + local_angle
                         
-                        # Dove credo che si trovi questo punto nel mondo?
                         est_hit_x = est_x + measured_dist * np.cos(est_ray_angle)
                         est_hit_y = est_y + measured_dist * np.sin(est_ray_angle)
                         
-                        # Aggiungo il punto alla mappa del robot
+                        noise = np.random.normal(0, cfg.LIDAR_NOISE_STD, 2) # Add noise to the measurement
+                        
+                        est_hit_x += noise[0]
+                        est_hit_y += noise[1]
+                        
+                        # Add the estimated hit point to the list of visible points in the robot's belief
                         visible_hit_points.append((est_hit_x, est_hit_y))
                         
         return np.array(visible_hit_points) if len(visible_hit_points) > 0 else np.array([])
     
 
-    def get_control(self, robot, all_robots, dt, voronoi, obstacles_map=Polygon(), inflated_map = Polygon(), target_obj=None):
+    def get_control(self, robot, dt, voronoi, inflated_map = Polygon(), target_obj=None):
         """
         Main interface for the Finite State Machine (FSM).
         Selects the appropriate control strategy and calculates [v, w] commands.
         
         Args:
             robot: The Robot object for which to calculate the control.
-            all_robots: List of all Robot objects in the environment (used for shared map and communication).
             dt: Time step for control update.
             voronoi: The Voronoi cell (Shapely Polygon) of the robot.
-            obstacles_map: A Shapely Polygon representing the collision map.
             inflated_map: A Shapely Polygon representing the inflated obstacle map.
             target_obj: The target object (Shapely Polygon) to be detected and measured by the robot.n 
             
@@ -474,7 +474,7 @@ class MotionController:
                 if (current_time - robot.last_measure_time) >= robot.measure_interval:
                 
                     # 1. Simulate a noisy measurement of the treasure position (in the robot's belief)
-                    noise = np.random.normal(0, 0.5, 2) # Big noise to make a test 
+                    noise = np.random.normal(0, cfg.LIDAR_NOISE_STD, 2) # Big noise to make a test 
                     my_measurement = treasure_center + noise
 
                     # Increment the local measurement count for the robot
@@ -508,7 +508,7 @@ class MotionController:
                 
                 # If the point is already inspected, we don't want to switch to INSPECTING state again 
                 for pt in robot.shared_map:
-                    if np.linalg.norm(target_arr - pt) < cfg.MAP_RESOLUTION * 3:
+                    if np.linalg.norm(target_arr - pt) < cfg.MAP_RESOLUTION * 5:
                         is_already_inspected = True
                         break 
                 
@@ -561,7 +561,7 @@ class MotionController:
             
             # Check for loop closure and if the robot is mapping an already well mapped area
             loop_closed = False
-            IGNORE_RADIUS_LOOP = cfg.MAP_RESOLUTION * 3
+            IGNORE_RADIUS_LOOP = cfg.MAP_RESOLUTION * 5
             safe_history_index = len(robot.shared_map) - 50 # Only check for loop closure with points that are at least 50 steps old to avoid false positives with current mapping area
             
             if safe_history_index > 0 and target_arr is not None:

@@ -112,9 +112,9 @@ while running:
         r.simulation_time += dt
 
     # Controllo del Moto
-    u1 = ctrl1.get_control(r1, env.robots, dt, cella1[0], real_obs_map, inflated_obs_map, env.target_object)
-    u2 = ctrl2.get_control(r2, env.robots, dt, cella2[0], real_obs_map, inflated_obs_map, env.target_object)
-    u3 = ctrl3.get_control(r3, env.robots, dt, cella3[0], real_obs_map, inflated_obs_map, env.target_object)
+    u1 = ctrl1.get_control(r1, dt, cella1[0], inflated_obs_map, env.target_object)
+    u2 = ctrl2.get_control(r2, dt, cella2[0], inflated_obs_map, env.target_object)
+    u3 = ctrl3.get_control(r3, dt, cella3[0], inflated_obs_map, env.target_object)
 
     # Rete e Trasmissione
     for r in env.robots:
