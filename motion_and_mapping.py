@@ -433,6 +433,7 @@ class MotionController:
         Returns:
             A numpy array [v, w] representing the linear and angular velocity commands for the robot.
         """
+        
         m_dir = 1 # Initialize variable for mapping direction, will be set when entering INSPECTING state
         
         # -- Obstacles sensing and Mapping #
@@ -495,14 +496,6 @@ class MotionController:
                     # robot.is_finder = True 
                     
                     return np.array([0.0, 0.0]) # Pause to stabilize
-            
-            # # Use the robot's internal sensor to detect and measure the target
-            # if robot.measure_target_edge(target_obj, obstacles_map):
-            #     if getattr(robot, 'consensus_treasure_pos', None) is None:
-            #         noise = np.random.normal(0, 0.5, size=2) # Simulate sensor noise
-            #         robot.consensus_treasure_pos = np.array(robot.target_treasure_pos) + noise
-            #         robot.target_treasure_pos = robot.consensus_treasure_pos
-            #     return np.array([0.0, 0.0]) # Stop to stabilize after finding the target
                 
                     
         # --- 1. SEARCHING STATE ---
@@ -515,7 +508,7 @@ class MotionController:
                 
                 # If the point is already inspected, we don't want to switch to INSPECTING state again 
                 for pt in robot.shared_map:
-                    if np.linalg.norm(target_arr - pt) < cfg.MAP_RESOLUTION:
+                    if np.linalg.norm(target_arr - pt) < cfg.MAP_RESOLUTION * 3:
                         is_already_inspected = True
                         break 
                 
@@ -566,9 +559,9 @@ class MotionController:
                         robot.inspected_points.append(new_pt)
                         robot.update_shared_map([new_pt])
             
-            # Check for loop closure
+            # Check for loop closure and if the robot is mapping an already well mapped area
             loop_closed = False
-            IGNORE_RADIUS_LOOP = cfg.ROBOT_RADIUS * 0.5
+            IGNORE_RADIUS_LOOP = cfg.MAP_RESOLUTION * 3
             safe_history_index = len(robot.shared_map) - 50 # Only check for loop closure with points that are at least 50 steps old to avoid false positives with current mapping area
             
             if safe_history_index > 0 and target_arr is not None:
@@ -600,8 +593,9 @@ class MotionController:
                     return self.wall_following_control(robot.state, closest_point, m_dir)
                 else:
                     # Lost track of the wall
-                    robot.state_mode = "SEARCHING"
-                    return np.array([0.0, 0.0])
+                    robot.state_mode = "SEARCHING" 
+                    self.time_remaining = MAX_TIME_EXPLOR
+                    return np.array([LIN_VEL, 0.0])
                 
                             
         # --- 3. TREASURE FOUND STATE ---

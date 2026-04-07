@@ -74,8 +74,8 @@ class Robot:
     """
 
     # Sinulate odometry noise (this is where the odometry drift happens in the simulation)
-    noise_v = np.random.normal(0, 0.05)  # 5 cm/s di errore lineare
-    noise_w = np.random.normal(0, 0.05)  # circa 3 gradi/s di errore angolare
+    noise_v = np.random.normal(0, cfg.SIGMA_V)  
+    noise_w = np.random.normal(0, cfg.SIGMA_W) 
 
     v_real = u[0] + noise_v
     w_real = u[1] + noise_w

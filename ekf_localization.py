@@ -1,11 +1,6 @@
 import numpy as np
 from shapely.geometry import Point, LineString
-
-
-# VARIABLES #
-CAM_NOISE_STD = np.array([0.1, 0.1, 0.05]) * 1e-9
-EKF_PROCESS_NOISE = np.array([0.05, 0.05, 0.01]) * 1e-9
-
+import config as cfg
 
 
 class GlobalCamera:
@@ -16,7 +11,7 @@ class GlobalCamera:
     def __init__(self, x, y):
         self.pos = Point(x, y)
         # Standard deviations for the measurement noise
-        self.noise_std = np.array(CAM_NOISE_STD)
+        self.noise_std = np.array(cfg.CAM_NOISE_STD)
         
     def can_see(self, robot_pos_arr, obstacles_map):
         """
@@ -74,12 +69,11 @@ class EKF:
         self.dt = dt
         
         # Process Noise Q: Uncertainty in the kinematics (slipping wheels, etc.)
-        # Tuned to trust the heading a bit more than X/Y translation
-        self.Q = np.diag(EKF_PROCESS_NOISE) ** 2
+        self.Q = np.diag(cfg.EKF_PROCESS_NOISE_STD) ** 2
         
         # Measurement Noise R: Uncertainty of the camera
         # Usually provided by the camera specs
-        self.R = np.diag(CAM_NOISE_STD) ** 2  
+        self.R = np.diag(cfg.CAM_NOISE_STD) ** 2  
         
         # Measurement Matrix H: Identity matrix since we measure exactly [x, y, theta]
         self.H = np.eye(3)
@@ -102,15 +96,25 @@ class EKF:
         # Normalize theta
         self.x_est[2] = (self.x_est[2] + np.pi) % (2 * np.pi) - np.pi
         
-        # 2. Jacobian G Calculation
-        G = np.array([
+        # 2. Jacobian A Calculation 
+        # wrt state
+        A = np.array([
             [1.0, 0.0, -v * np.sin(theta) * self.dt],
             [0.0, 1.0,  v * np.cos(theta) * self.dt],
-            [0.0, 0.0, 1.0]
+            [0.0, 0.0,                          1.0]
         ])
         
+        # wrt noise 
+        G = np.array([
+            [np.cos(theta) * self.dt, 0.0],
+            [np.sin(theta) * self.dt, 0.0],
+            [0.0,                 self.dt]
+        ])
+        
+        
         # 3. Covariance Prediction
-        self.P = G @ self.P @ G.T + self.Q
+        self.P = A @ self.P @ A.T + G @ self.Q @ G.T
+        
         
     def update(self, z):
         """
@@ -132,11 +136,11 @@ class EKF:
         S = self.H @ self.P @ self.H.T + self.R
         
         # 3. Kalman Gain K
-        K = self.P @ self.H.T @ np.linalg.inv(S)
+        W = self.P @ self.H.T @ np.linalg.inv(S)
         
         # 4. State Update
-        self.x_est = self.x_est + (K @ y)
+        self.x_est = self.x_est + (W @ y)
         self.x_est[2] = (self.x_est[2] + np.pi) % (2 * np.pi) - np.pi
         
         # 5. Covariance Update
-        self.P = (self.I - K @ self.H) @ self.P
+        self.P = (self.I - W @ self.H) @ self.P
