@@ -36,7 +36,7 @@ def run_single_simulation(run_id):
     env.add_obstacle([(-9, -2), (-5, -2), (-5, -1.5), (-9, -1.5)])
     env.add_obstacle([(-5, -5.5), (-1, -5.5), (-1, -5), (-5, -5)])
 
-    cerchio1 = [( -5.0 + 1.0 * np.cos(2 * np.pi * i / 20),  7.0 + 1.0 * np.sin(2 * np.pi * i / 20)) for i in range(20)]
+    cerchio1 = [( -5.0 + 1.0 * np.cos(2 * np.pi * i / 20),  6.0 + 1.0 * np.sin(2 * np.pi * i / 20)) for i in range(20)]
     cerchio2 = [(  7.0 + 1.0 * np.cos(2 * np.pi * i / 20), -6.0 + 1.0 * np.sin(2 * np.pi * i / 20)) for i in range(20)]
     env.add_obstacle(cerchio1)
     env.add_obstacle(cerchio2)
@@ -82,9 +82,9 @@ def run_single_simulation(run_id):
             if not hasattr(r, 'simulation_time'): r.simulation_time = 0.0
             r.simulation_time += dt
 
-        u1 = ctrl1.get_control(r1, env.robots, dt, cella1[0], real_obs_map, inflated_obs_map, env.target_object)
-        u2 = ctrl2.get_control(r2, env.robots, dt, cella2[0], real_obs_map, inflated_obs_map, env.target_object)
-        u3 = ctrl3.get_control(r3, env.robots, dt, cella3[0], real_obs_map, inflated_obs_map, env.target_object)
+        u1 = ctrl1.get_control(r1, dt, cella1[0], inflated_obs_map, env.target_object)
+        u2 = ctrl2.get_control(r2, dt, cella2[0], inflated_obs_map, env.target_object)
+        u3 = ctrl3.get_control(r3, dt, cella3[0], inflated_obs_map, env.target_object)
 
         for r in env.robots:
             if r.tick_timer(): broadcast_data(r, env.robots)

@@ -209,6 +209,8 @@ class MotionController:
     def wall_following_control(self, robot_state, closest_point, m_dir = 1):
         """
         Control strategy for sliding along obstacles when in INSPECTING state.
+        Computes a control vector that combines a tangential flow along the obstacle 
+        boundary with a normal correction to maintain a desired distance from the wall.
         
         Args:
             robot_state: A numpy array or list containing the robot's current [x, y, theta].
@@ -462,7 +464,7 @@ class MotionController:
         ## ---------------- FINITE STATE MACHINE (FSM) ---------------- ##
         
         # --- TREASURE DETECTION  --- #
-        if target_obj is not None: # and robot.state_mode in ["SEARCHING", "INSPECTING"]:
+        if target_obj is not None: 
             treasure_center = np.array([target_obj.centroid.x, target_obj.centroid.y])
             dist_to_treasure = np.linalg.norm(robot_pos_arr - treasure_center) 
             
@@ -492,8 +494,7 @@ class MotionController:
                     robot.last_measure_time = current_time
                     robot.has_sensed_treasure = True # For visualization purposes
                     # 3. Update the robot state to TREASURE_FOUND
-                    robot.state_mode = "TREASURE_FOUND"
-                    # robot.is_finder = True 
+                    robot.state_mode = "TREASURE_FOUND" 
                     
                     return np.array([0.0, 0.0]) # Pause to stabilize
                 
@@ -600,12 +601,6 @@ class MotionController:
                             
         # --- 3. TREASURE FOUND STATE ---
         elif robot.state_mode == "TREASURE_FOUND":
-            
-            # if getattr(robot, 'is_finder', False) and not getattr(robot, 'has_called_help', False):
-                
-            #     # If the robot is the finder and has not called for help yet, broadcast a call to join the formation
-            #     robot.broadcast_help(all_robots)
-            #     robot.has_called_help = True # Ensure the call for help is only sent once
             
             # Both the finder and the joining robots use the ring-based Lloyd control continuously.
             return self.formation_loyd_control(robot.state, robot.target_treasure_pos, voronoi, ring_radius=cfg.RING_RADIUS)

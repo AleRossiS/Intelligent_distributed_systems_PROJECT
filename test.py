@@ -29,7 +29,7 @@ env.add_obstacle([(-9, -2), (-5, -2), (-5, -1.5), (-9, -1.5)])
 env.add_obstacle([(-5, -5.5), (-1, -5.5), (-1, -5), (-5, -5)])
 
 # Il piccolo cerchio 1
-cx1, cy1 = -5.0, 7.0
+cx1, cy1 = -5.0, 6.0
 raggio1 = 1.0
 num_lati1 = 20
 cerchio1 = [(cx1 + raggio1 * np.cos(2 * np.pi * i / num_lati1), cy1 + raggio1 * np.sin(2 * np.pi * i / num_lati1)) for i in range(num_lati1)]
