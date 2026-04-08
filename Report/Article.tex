@@ -1,0 +1,126 @@
+\documentclass[times, twoside]{zHenriquesLab-StyleBioRxiv}
+
+\usepackage{blindtext}
+
+% Please give the surname of the lead author for the running footer
+\leadauthor{Prof. Daniele Fontanelli} 
+
+\begin{document}
+
+\title{Swarm Intelligence and Target Search}
+\shorttitle{Swarm Intelligence and Target Search}
+
+% Use letters for affiliations, numbers to show equal authorship (if applicable) and to indicate the corresponding author
+\author[1]{Alessandro Rossi}
+\author[2]{Lorenzo Franco}
+
+\affil[1]{Intelligent Distributed Systems, master's degree in mechatronics engineering, University of Trento}
+
+\maketitle
+
+%TC:break Abstract
+%the command above serves to have a word count for the abstract
+\begin{abstract}
+A "treasure hunt" can be a fun and engaging opportunity to test the capabilities of a swarm of robots in a simulated environment.
+The multiagent system proposed in this project is designed to search for a target in a 2D environment using a combination of swarm
+intelligence \cite{consensusUSATO,consensus_A_SCHEME}, Voronoi cells \cite{fontanelli,raycast}, Lévy flight \cite{levyUSED,levyDISTRIB} and sensor fusion techniques. The main objective of the project is to
+evaluate the performance of the proposed multiagent system in terms of search efficiency, convergence time, and robustness to
+noise and uncertainties in the environment. The simulation will be implemented in Python, and the results will be analyzed to draw
+conclusions about the effectiveness of the proposed approach in solving the treasure hunt problem.
+\end {abstract}
+%TC:break main
+%the command above serves to have a word count for the abstract
+
+% \begin{keywords}
+% Swarm Intelligence, Voronoi Cells, Lévy Flight, Sensor Fusion
+% \end{keywords}
+
+% \begin{corrauthor}
+% %\texttt{r.henriques{@}ucl.ac.uk}
+% r.henriques\at ucl.ac.uk
+% \end{corrauthor}
+
+\section*{Introduction}
+This project presents a control framework for a swarm of mobile robots
+that finds, estimates and encircles a target. The system combines a
+lidar, for obstacle detection, an Extended Kalman Filter (EKF) for state
+estimation and linear consensus for coordination. The treasure is supposed to be a point object emitting a weak radio signal, the detection is performed by a
+simple thresholding of the received signal strength. The robots are able
+to coordinate their movements using a linear consensus algorithm, allowing convergence to the estimated position of the target
+while avoiding obstacles. An iteration of the consensus algorithm enhances the precision of the target estimate. The performance of the proposed control
+framework is evaluated through simulations in a 2D environment,
+where the robots are tasked with finding and aligning around a target
+while navigating through a cluttered environment. The results show
+that the proposed approach is effective in enabling the swarm of robots
+to find and align around the target, even in the presence of noise and
+uncertainties in the environment.
+
+\section*{The task}
+
+The task is defined, in a 2D environment, as the search of a target, supposed to be a point object. The issue addresses the problem of distributed cooperative control for a group of mobile robots, which are able to act autonomously. The project allows for the implementation of a control framework combining a Voronoi-Lloyd partitional scheme, an Extended Kalman Filter and a linear consensus algorithm. The EKF allows for the sensor fusion of the odometry and the realsense position measurements. The swarm is tasked with exploring, avoiding obstacles, finding the target and aligning around it. 
+
+\subsection*{Structure and workflow}
+The simulation is performed in a 2D environment filled with obstacles emulating a cluttered room. A finite state machine is implemented to control the behavior of the robots. which are listed as follows:
+\begin{itemize}[noitemsep]
+    \item Searching: the robots explore the environment using Levy flight while avoiding other robots and obstacles.
+    \item Inspecting: the robots detects an obstacle and checks if it is the target by getting closer and measuring the signal strength.
+    \item Treasure found: once the target is found, all agents converge to the estimated position and further refine the estimate by iterating the consensus algorithm.
+\end{itemize}
+
+\noindent Position estimation is performed by sensor fusion, through the EFK, combining odometry and a camera-based measurement, positioned in the top right corner and can be seen in Figure \ref{fig:environment}. Through raycasting, occlusions are taken into account, so that the position measurement is not available when the line of sight is blocked by an obstacle, hence the robots will display a "Tracking/No signal" label. Obstacle avoidance is performed through a control loop implemented in the "Searching" state, which applies a repulsive force when an obstacle enters the sensing range of the lidar sensor. Through the "Inspecting" state, 
+
+\begin{figure}
+\centering
+\includegraphics[width=.8\linewidth]{Figures/environment.png}
+\caption{Simulation environment}
+\label{fig:environment}
+\end{figure}
+
+\section*{Model and methods}
+
+\subsection*{Extended Kalman Filter}
+
+\subsection*{Voronoi cells}
+
+\subsection*{Lèvy flight}
+
+\section*{Conclusions}
+
+
+
+\begin{acknowledgements}
+\blindtext
+\end{acknowledgements}
+
+\section*{Bibliography}
+\bibliography{zHenriquesLab-Mendeley}
+
+%% You can use these special %TC: tags to ignore certain parts of the text.
+%TC:ignore
+%the command above ignores this section for word count
+\onecolumn
+\newpage
+
+% \section*{Word Counts}
+% This section is \textit{not} included in the word count. 
+% \subsection*{Notes on Nature Methods Brief Communication}
+% \begin{itemize}
+% \item Abstract: 3 sentences, 70 words.
+% \item Main text: 3 pages, 2 figures, 1000-1500 words, more figures possible if under 3 pages
+% \end{itemize}
+
+% \subsection*{Statistics on word count}
+% \detailtexcount
+% \newpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Supplementary Information %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\captionsetup*{format=largeformat}
+\section{Something about something} \label{note:Note1} 
+\Blindtext
+
+%TC:endignore
+%the command above ignores this section for word count
+
+\end{document}

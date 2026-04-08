@@ -1,9 +1,11 @@
 import numpy as np
 from scipy.stats import levy_stable
 import matplotlib.pyplot as plt
-from shapely.geometry import Point, LineString
+from shapely.geometry import Point, LineString, Polygon
 import config as cfg
 from matplotlib.path import Path
+from shapely.ops import unary_union
+
 
 
 ## HYPERPARAMETERS ##
@@ -13,15 +15,17 @@ MAX_TIME_EXPLOR = 10       # Maximum time to keep moving in the same direction d
 MIN_TIME_EXPLOR = 4        # Minimum time to keep moving in the same direction during exploration
 MAX_TIME_TREAS = 4       # Maximum time to keep moving in the same direction when treasure is found
 MIN_TIME_TREAS = 2        # Minimum time to keep moving in the same direction when treasure is found
-LIN_VEL = 2.0       # Linear velocity magnitude
+LIN_VEL = 1.0       # Linear velocity magnitude
 ANG_VEL_GAIN = 1  # Angular velocity gain for turning
 ALPHA = 1.5         # Lévy distribution parameter (0 < alpha <= 2)
 BETA = 1.0          # Lévy distribution skewness parameter (-1 <= beta <= 1)
-SCALE = 1.0         # Lévy distribution scale parameter (scale > 0
+SCALE = 1.0         # Lévy distribution scale parameter (scale > 0)
 
 ## Obstacle avoidance parameters ##
 D_MIN = cfg.ROBOT_RADIUS * 2  # Minimum distance to start avoiding obstacles
-REPULSIVE_GAIN = 8 # Repulsive control gain for obstacle avoidance 
+REPULSIVE_GAIN_FOR_LEVY = 8 # Repulsive control gain for obstacle avoidance during Levy flight 
+REPULSIVE_GAIN_FOR_LOYD = 0.5 # Repulsive control gain for obstacle avoidance during Lloyd's algorithm
+
 
         
         
@@ -131,7 +135,7 @@ class MotionController:
         if abs(angle_error) > (np.pi / 4.0): 
             v = 0.0
         else:
-            v = LIN_VEL * max(0.0, np.cos(angle_error)**3) # Modulate linear velocity 
+            v = LIN_VEL * max(0.0, np.cos(angle_error)) # Modulate linear velocity 
             
         self.time_remaining -= dt # decrease time remaining 
 
@@ -172,7 +176,7 @@ class MotionController:
                 dir = dir / np.linalg.norm(dir) # Normalize the direction
                 
                 # Quadratic repulsive conrtol 
-                repulsive_force = REPULSIVE_GAIN * ((D_MIN - dist) ** 2) * dir
+                repulsive_force = REPULSIVE_GAIN_FOR_LEVY * ((D_MIN - dist) ** 2) * dir
 
         return repulsive_force
 
@@ -202,7 +206,7 @@ class MotionController:
         plt.show()
 
 
-    def wall_following_control(self, robot_state, closest_point):
+    def wall_following_control(self, robot_state, closest_point, m_dir = 1):
         """
         Control strategy for sliding along obstacles when in INSPECTING state.
         
@@ -227,8 +231,8 @@ class MotionController:
         nx, ny = dx / dist, dy / dist
         
         # 2. Compute tangent vector for sliding (CW direction)
-        # Note: Use (-ny, nx) for CCW direction
-        tx, ty = ny, -nx 
+        # Note: (-ny, nx) CCW direction, (ny, -nx) CW direction
+        tx, ty = - m_dir *ny, m_dir * nx 
         
         # 3. P-controller for distance correction
         error = dist - d_target
@@ -251,52 +255,60 @@ class MotionController:
         return np.array([v, w])
     
     
-    def go_to_goal_control(self, robot_state, goal_pos, voronoi):
+    def formation_loyd_control(self, robot_state, goal_pos, voronoi, ring_radius=0.0):
         """
         Guides the robot towards the goal using a Lloyd-based control algorithm.
-        Calculates the centroid of the Voronoi cell weighted by a Gaussian PDF centered on the goal.
-        Uses an adaptive standard deviation based on distance to prevent vanishing gradients.
+        If ring_radius > 0, uses a ring-shaped Gaussian PDF to form a circular formation, if = 0, uses a standard
+        Gaussian PDF that guides the robot to the goal position.
+        Also integrates obstacle avoidance by combining the Lloyd control vector with the repulsive 
+        vector when near obstacles to better navigate around them.
         
         Args:
             robot_state: A numpy array or list containing the robot's current [x, y, theta].
-            goal_pos: A tuple (x, y) representing the goal position.
-            voronoi: A Shapely Polygon representing the Voronoi cell of the robot.
+            goal_pos: A tuple (goal_x, goal_y) representing the target position to reach.
+            voronoi: A Shapely Polygon representing the robot's assigned Voronoi cell.
+            ring_radius: If > 0, the radius of the ring-shaped PDF for circular formation control. 
+            If = 0, standard Gaussian is used.
             
         Returns:
-            A numpy array [v, w] representing the linear and angular velocity commands.
+            A numpy array [v, w] representing the linear and angular velocity commands for formation control.
         """
+        
         x, y, theta = robot_state
         goal_x, goal_y = goal_pos[0], goal_pos[1]
         
-        # 1. Voronoi cell discretization (creating a local grid) for numerical integration of the weighted centroid
+        # 1. Voronoi cell discretization
         minx, miny, maxx, maxy = voronoi.bounds
-        grid_res = 15j # A way to specify the number of points in the grid (15x15) with complex numbers in np.mgrid
+        grid_res = 15j 
         grid_x, grid_y = np.mgrid[minx:maxx:grid_res, miny:maxy:grid_res]
-        points = np.vstack((grid_x.flatten(), grid_y.flatten())).T # Create a list of points of the grid
+        points = np.vstack((grid_x.flatten(), grid_y.flatten())).T 
         
-        # 2. Filter only the points that are INSIDE the Voronoi polygon
+        # 2. Keep the points of the grid defined above that are inside the Voronoi cell
         poly_path = Path(list(voronoi.exterior.coords))
         inside_mask = poly_path.contains_points(points)
         valid_points = points[inside_mask]
         
-        # Distance of the robot to the goal (used for adaptive sigma calculation)
-        dist_to_goal = np.hypot(goal_x - x, goal_y - y) # Euclidean distance 
+        dist_to_goal = np.hypot(goal_x - x, goal_y - y) 
         
-        # Safety fallback
+        # Fallback
         if len(valid_points) == 0:
             cx, cy = voronoi.centroid.x, voronoi.centroid.y
             
         else:
-            # 3. Adaptive sigma calculation: increases with distance to the goal 
+            # 3. Adaptive sigma calculation
             sigma_0 = 0.5 
-            R = 5.0        
+            R_ad = 5.0        
+            sigma_adaptive = sigma_0 * (1.0 + (dist_to_goal / R_ad))
             
-            # Formula: sigma = sigma_0 * (1 + d / R)
-            sigma_adaptive = sigma_0 * (1.0 + (dist_to_goal / R))
+            # 4. Weight calculation 
+            dists_to_goal_grid = np.hypot(valid_points[:, 0] - goal_x, valid_points[:, 1] - goal_y)
             
-            # 4. Weight calculation based on the adaptive Gaussian PDF
-            dists_sq = (valid_points[:, 0] - goal_x)**2 + (valid_points[:, 1] - goal_y)**2
-            weights = np.exp(-dists_sq / (2 * sigma_adaptive**2))
+            if ring_radius > 0.0:
+                # Ring PDF
+                weights = np.exp(-(dists_to_goal_grid - ring_radius)**2 / (2 * sigma_adaptive**2))
+            else:
+                # Gaussian PDF
+                weights = np.exp(-(dists_to_goal_grid)**2 / (2 * sigma_adaptive**2))
             
             # 5. Weighted Centroid calculation
             weight_sum = np.sum(weights)
@@ -304,22 +316,109 @@ class MotionController:
                 cx = np.sum(valid_points[:, 0] * weights) / weight_sum
                 cy = np.sum(valid_points[:, 1] * weights) / weight_sum
             else:
-                cx, cy = voronoi.centroid.x, voronoi.centroid.y # Fallback
+                cx, cy = voronoi.centroid.x, voronoi.centroid.y 
+          
+        # Compute distance to the centroid       
+        dist_to_centroid = np.hypot(cx - x, cy - y)
+        
+        # If near the centroid stop, to avoid oscillations 
+        if dist_to_centroid < 0.05:
+            return np.array([0.0, 0.0])
                 
-        # 6. Unicycle commands [v, w] generation towards the weighted centroid
-        target_theta = np.arctan2(cy - y, cx - x)
+        # Obstacle avoidance repulsive control
+        # 1. Compute repulsive vector
+        v_rep = self.obstacle_avoidance_control(robot_state, voronoi)
+        
+        # 2. Compute attractive vector towards the weighted centroid 
+        v_attr = np.array([cx - x, cy - y])
+        
+        # 3. Rresultant vector combining attraction to the centroid and repulsion from obstacles
+        final_vector = v_attr +  REPULSIVE_GAIN_FOR_LOYD * v_rep
+        
+        # 4. Unicycle commands [v, w] based on the final vector
+        target_theta = np.arctan2(final_vector[1], final_vector[0])
         angle_error = (target_theta - theta + np.pi) % (2 * np.pi) - np.pi
         
         w = ANG_VEL_GAIN * angle_error
-        
-        # Smoothly modulate linear velocity based on the angle error 
-        v = LIN_VEL * max(0.0, np.cos(angle_error)**3) # The **3 allows good control 
+        v = LIN_VEL * max(0.0, np.cos(angle_error)**3) 
             
         return np.array([v, w])
     
     
+    def lidar_mapping(self, robot, collision_map):
+        """
+        Simulates a 360-degree LiDAR sensor using ray-casting to detect obstacles and update the robot's internal map.
+        The simulation distinguishes between the true physical position of the robot (to detect obstacles) 
+        and the estimated position (to map the detected points).
+        This function aslo handles the fact that the robot computes its state estimation using an EKF, so the detected points are projected in the robot's belief of the world, which can differ from the true world due to estimation errors.
+        
+        Args:
+            robot: The Robot object for which to perform LiDAR mapping.
+            collision_map: A Shapely Polygon representing the collision map.
+        
+        Returns:
+            A numpy array of shape (N, 2) containing the coordinates of the detected obstacle points (Belief).
+        """
+        
+        # Extract true and estimated states
+        true_x, true_y, true_theta = robot.true_state
+        est_x, est_y, est_theta = robot.state
+        
+        true_pos_pt = Point(true_x, true_y)
+        visible_hit_points = []
+            
+        # Ray casting
+        if not collision_map.is_empty:
+            num_rays = int(360 / cfg.RAY_CASTING_RESOLUTION)
 
-    def get_control(self, robot, dt, voronoi, obstacles_list=[], treasure_pos=None):
+            local_angles = np.linspace(0, 2 * np.pi, num_rays, endpoint=False)
+            
+            for local_angle in local_angles:
+                
+                # --- 1. Real Measurement ---
+                true_ray_angle = true_theta + local_angle
+                
+                # Create a single LiDAR ray up to SENSING_RANGE in the real world
+                ray_end_true = (true_x + np.cos(true_ray_angle) * cfg.SENSING_RANGE, 
+                                true_y + np.sin(true_ray_angle) * cfg.SENSING_RANGE)
+                ray_line_true = LineString([(true_x, true_y), ray_end_true])
+                
+                # Check if the ray hits an obstacle physically
+                if ray_line_true.intersects(collision_map):
+                    
+                    # Intersect with the BOUNDARY of the obstacles to get the exact hit point
+                    hit_geom = ray_line_true.intersection(collision_map.boundary)
+                    
+                    hit_point_true = None
+                    if hit_geom.geom_type == 'Point':
+                        hit_point_true = hit_geom
+                    elif hit_geom.geom_type in ['MultiPoint', 'GeometryCollection']:
+                        # If the ray pierces multiple walls, get the closest hit point
+                        hit_points_list = [pt for pt in hit_geom.geoms if pt.geom_type == 'Point']
+                        if hit_points_list:
+                            hit_point_true = min(hit_points_list, key=lambda pt: true_pos_pt.distance(pt))
+                    
+                    # --- 2. Projection in the Robot's EKF estimate ---
+                    if hit_point_true is not None:
+                        
+                        measured_dist = np.sqrt((hit_point_true.x - true_x)**2 + (hit_point_true.y - true_y)**2)
+                        est_ray_angle = est_theta + local_angle
+                        
+                        est_hit_x = est_x + measured_dist * np.cos(est_ray_angle)
+                        est_hit_y = est_y + measured_dist * np.sin(est_ray_angle)
+                        
+                        noise = np.random.normal(0, cfg.LIDAR_NOISE_STD, 2) # Add noise to the measurement
+                        
+                        est_hit_x += noise[0]
+                        est_hit_y += noise[1]
+                        
+                        # Add the estimated hit point to the list of visible points in the robot's belief
+                        visible_hit_points.append((est_hit_x, est_hit_y))
+                        
+        return np.array(visible_hit_points) if len(visible_hit_points) > 0 else np.array([])
+    
+
+    def get_control(self, robot, dt, voronoi, inflated_map = Polygon(), target_obj=None):
         """
         Main interface for the Finite State Machine (FSM).
         Selects the appropriate control strategy and calculates [v, w] commands.
@@ -328,88 +427,75 @@ class MotionController:
             robot: The Robot object for which to calculate the control.
             dt: Time step for control update.
             voronoi: The Voronoi cell (Shapely Polygon) of the robot.
-            obstacles_list: List of Shapely Polygons representing physical obstacles in the environment.
-            treasure_pos: Tuple (x, y) of the treasure position, used for detection and final approach.
+            inflated_map: A Shapely Polygon representing the inflated obstacle map.
+            target_obj: The target object (Shapely Polygon) to be detected and measured by the robot.n 
             
         Returns:
             A numpy array [v, w] representing the linear and angular velocity commands for the robot.
         """
         
-        # -- Obstacles sensing and Mapping -- #
-        # 1. Extract current position
-        robot_pos = Point(robot.state[0], robot.state[1])
+        m_dir = 1 # Initialize variable for mapping direction, will be set when entering INSPECTING state
+        
+        # -- Obstacles sensing and Mapping #
+        visible_hit_points = self.lidar_mapping(robot, inflated_map) # Get the visible hit points from the LiDAR mapping   
+        
+        # Extract current position
         robot_pos_arr = np.array([robot.state[0], robot.state[1]])
-
-        # 2. Compute voronoi points distance to the robot
-        voronoi_coords = np.array(voronoi.exterior.coords)
-        distances_to_robot = np.linalg.norm(voronoi_coords - robot_pos_arr, axis=1)
         
-        # 3. Filter points: keep only REAL physical obstacles within LIDAR range
-        LIDAR_HIT_THRESHOLD = cfg.SENSING_RANGE * 0.9
-        visible_hit_points = []
         
-        # Check the voronoi points that are within the LIDAR sensing range 
-        for pt, dist_to_me in zip(voronoi_coords, distances_to_robot):
-            if dist_to_me < LIDAR_HIT_THRESHOLD:
-                is_shared_boundary = False # Initialize flag 
-                
-                # Filter out shared boundaries with other robots
-                for other_pos in robot.other_robots_positions.values():
-                    other_pos_arr = np.array(other_pos)
-                    dist_to_other = np.linalg.norm(pt - other_pos_arr)
-                    
-                    if dist_to_other <= dist_to_me + 0.05:  # 0.05 tolerance
-                        is_shared_boundary = True
-                        break
-                
-                # If it's not a shared boundary, consider it a visible hit point (real obstacle)
-                if not is_shared_boundary:
-                    visible_hit_points.append(pt)
-                
-        visible_hit_points = np.array(visible_hit_points)
-
-        # 4. Find the closest real obstacle point for wall-following control in INSPECTING state
+        # 2. Find the closest point for wall-following control
         if len(visible_hit_points) > 0:
             distances_to_real_obs = np.linalg.norm(visible_hit_points - robot_pos_arr, axis=1) # All distances
             min_idx = np.argmin(distances_to_real_obs) # Find the minimum distance index
             
-            target_arr = visible_hit_points[min_idx] # The closest real obstacle point
+            target_arr = visible_hit_points[min_idx] # The closest point
             closest_point = Point(target_arr[0], target_arr[1])
-            dist_to_boundary = distances_to_real_obs[min_idx] # Distance to the closest real obstacle point, used for state transitions
+            dist_to_boundary = distances_to_real_obs[min_idx] # Distance to the closest point
         else:
-            dist_to_boundary = float('inf') # Fallback if no real obstacles are visible
+            dist_to_boundary = float('inf') # Fallback if no obstacles are visible
             closest_point = None
-            target_arr = None        
+            target_arr = None 
+            
+        
+        LIDAR_HIT_THRESHOLD = cfg.SENSING_RANGE * 0.9
     
         ## ---------------- FINITE STATE MACHINE (FSM) ---------------- ##
         
         # --- TREASURE DETECTION  --- #
-        if treasure_pos is not None and robot.state_mode in ["SEARCHING", "INSPECTING"]:
-            treasure_point = Point(treasure_pos[0], treasure_pos[1])
-            dist_to_treasure = robot_pos.distance(treasure_point)
+        if target_obj is not None: # and robot.state_mode in ["SEARCHING", "INSPECTING"]:
+            treasure_center = np.array([target_obj.centroid.x, target_obj.centroid.y])
+            dist_to_treasure = np.linalg.norm(robot_pos_arr - treasure_center) 
             
-            # Check if the robot is within the detection range of the treasure
-            if dist_to_treasure < cfg.BL_RANGE * 0.9: # 0.9 is a safety factor 
-                signal_line = LineString([robot_pos, treasure_point]) # Line of sight between the robot and the treasure
-                signal_blocked = False # Initialize flag to check if the line of sight is blocked by obstacles
+            # Check if the robot is close enough to the treasure to detect it 
+            if dist_to_treasure < cfg.BL_RANGE :
+
+                current_time = getattr(robot, 'simulation_time', 0.0) 
+
+                if (current_time - robot.last_measure_time) >= robot.measure_interval:
                 
-                # Check Line-Of-Sight against physical obstacles (excluding treasure, that is treated like an obstacle)
-                for obs in obstacles_list:
-                    if obs.contains(treasure_point) or obs.distance(treasure_point) < 0.1:
-                        continue # Skip if the obstacle is the treasure itself and restart the loop
+                    # 1. Simulate a noisy measurement of the treasure position (in the robot's belief)
+                    noise = np.random.normal(0, cfg.LIDAR_NOISE_STD, 2) # Big noise to make a test 
+                    my_measurement = treasure_center + noise
+
+                    # Increment the local measurement count for the robot
+                    robot.local_measure_count += 1
                     
-                    if signal_line.intersects(obs):
-                        signal_blocked = True
-                        break # No need to check further if the signal is already blocked, go to the next code step
+                    # 2. Update the consensus estimate of the treasure position
+                    if getattr(robot, 'consensus_treasure_pos', None) is None:
+                        # È il primo scopritore in assoluto
+                        robot.consensus_treasure_pos = my_measurement
+                    else:
+                        alpha = 1/robot.local_measure_count # Più misurazioni faccio, meno peso do alla nuova informazione per stabilizzare la stima
+                        robot.consensus_treasure_pos = (1.0 - alpha) * robot.consensus_treasure_pos + (alpha * my_measurement)
                         
-                # Transition to TREASURE_FOUND if line of sight is clear => treasure detected
-                if not signal_blocked:
-                    print(f"Robot {robot.robot_id} found the treasure")
+                    robot.target_treasure_pos = robot.consensus_treasure_pos
+                    robot.last_measure_time = current_time
+                    robot.has_sensed_treasure = True # For visualization purposes
+                    # 3. Update the robot state to TREASURE_FOUND
                     robot.state_mode = "TREASURE_FOUND"
-                    robot.found_treasure = True
-                    robot.target_treasure_pos = np.array([treasure_point.x, treasure_point.y])
+                    # robot.is_finder = True 
                     
-                    return np.array([0.0, 0.0])
+                    return np.array([0.0, 0.0]) # Pause to stabilize
                 
                     
         # --- 1. SEARCHING STATE ---
@@ -417,16 +503,22 @@ class MotionController:
             
             # Check if a real obstacle is hit to start mapping
             if dist_to_boundary < LIDAR_HIT_THRESHOLD and target_arr is not None:
-                is_already_inspected = False
                 
+                is_already_inspected = False # Flag initialization
+                
+                # If the point is already inspected, we don't want to switch to INSPECTING state again 
                 for pt in robot.shared_map:
-                    if np.linalg.norm(target_arr - pt) < cfg.MAP_RESOLUTION:
+                    if np.linalg.norm(target_arr - pt) < cfg.MAP_RESOLUTION * 5:
                         is_already_inspected = True
-                        break # If the point is already inspected, we don't want to switch to INSPECTING state again 
+                        break 
                 
                 # If new real obstacle point and not already inspected, switch to INSPECTING state to start mapping it
                 if not is_already_inspected:
                     robot.state_mode = "INSPECTING"
+                    
+                    # Randomly choose direction (clk or counterclk) to avoid all robots doing the same thing in mapping
+                    # Used later in the wall-following control to decide the sliding direction
+                    m_dir = robot.mapping_dir = np.random.choice([1, -1]) 
                     
                     for pt in visible_hit_points:
                         is_duplicate = False
@@ -442,7 +534,7 @@ class MotionController:
                             robot.inspected_points.append(pt) 
                             robot.update_shared_map([pt])
                             
-                    return np.array([0.0, 0.0]) # Stop to stabilizee
+                    return np.array([0.0, 0.0]) # Stop to stabilize
 
             # Default: Levy flight exploration, if no new real obstacles are detected in the line of sight
             return self.levy_control(robot.state, dt, voronoi, min_time=MIN_TIME_EXPLOR, max_time=MAX_TIME_EXPLOR)
@@ -467,9 +559,9 @@ class MotionController:
                         robot.inspected_points.append(new_pt)
                         robot.update_shared_map([new_pt])
             
-            # Check for loop closure
+            # Check for loop closure and if the robot is mapping an already well mapped area
             loop_closed = False
-            IGNORE_RADIUS_LOOP = cfg.ROBOT_RADIUS * 1.5 
+            IGNORE_RADIUS_LOOP = cfg.MAP_RESOLUTION * 5
             safe_history_index = len(robot.shared_map) - 50 # Only check for loop closure with points that are at least 50 steps old to avoid false positives with current mapping area
             
             if safe_history_index > 0 and target_arr is not None:
@@ -497,94 +589,25 @@ class MotionController:
             else:
                 # If still in INSPECTING state, do wall-following control to slide along the obstacle and map it 
                 if closest_point is not None:
-                    return self.wall_following_control(robot.state, closest_point)
+                    
+                    return self.wall_following_control(robot.state, closest_point, m_dir)
                 else:
                     # Lost track of the wall
-                    robot.state_mode = "SEARCHING"
-                    return np.array([0.0, 0.0])
+                    robot.state_mode = "SEARCHING" 
+                    self.time_remaining = MAX_TIME_EXPLOR
+                    return np.array([LIN_VEL, 0.0])
                 
                             
         # --- 3. TREASURE FOUND STATE ---
         elif robot.state_mode == "TREASURE_FOUND":
             
-            # 1. Initialization
-            # This if means that the robot has just entered the TREASURE_FOUND state
-            if robot.rendezvous_pos is None:
-                robot.rendezvous_pos = np.copy(robot.state[:2]) # Save point where the robot found the treasure 
-                                                                # (current pos because the robot stopped) 
-                robot.is_finder = True  # Set the flag to indicate that this robot is the finder of the treasure
-                robot.relocation_done = False # Initialize the relocation flag 
+            # if getattr(robot, 'is_finder', False) and not getattr(robot, 'has_called_help', False):
+                
+            #     # If the robot is the finder and has not called for help yet, broadcast a call to join the formation
+            #     robot.broadcast_help(all_robots)
+            #     robot.has_called_help = True # Ensure the call for help is only sent once
             
-            # 2. Finder behavior
-            if getattr(robot, 'is_finder', False): # = If this robot is the finder
-                
-                # Check if the treasure is still visible and if the signal is not blocked by obstacles
-                treasure_point = Point(treasure_pos[0], treasure_pos[1])
-                robot_point = Point(robot.state[0], robot.state[1])
-                dist_to_treasure = robot_point.distance(treasure_point)
-                
-                signal_blocked = False
-                signal_line = LineString([robot_point, treasure_point])
-                for obs in obstacles_list:
-                    if obs.contains(treasure_point) or obs.distance(treasure_point) < 0.1:
-                        continue
-                    if signal_line.intersects(obs):
-                        signal_blocked = True
-                        break
-                        
-                SAFE_BL_RANGE = cfg.BL_RANGE # Safety margin
-                
-                # If the treasure signal is lost or the signal is blocked, go to the rendezvous point 
-                if signal_blocked or dist_to_treasure > SAFE_BL_RANGE:
-                    return self.go_to_goal_control(robot.state, robot.rendezvous_pos, voronoi)
-                
-                # Check distance from rendezvous point
-                dist_from_rendezvous = np.linalg.norm(robot.state[:2] - robot.rendezvous_pos)
-                
-                # When the robot is far enough from the rendezvous point, it has finished the relocation phase
-                if dist_from_rendezvous >= 1.5 and not robot.relocation_done: 
-                    robot.relocation_done = True
-                    
-                    # Call the closest robot
-                    closest_id = None
-                    min_dist = float('inf')
-                    robot_pos_arr = np.array(robot.state[:2])
-                    
-                    # Find the closest robot to call
-                    for other_id, other_pos in robot.other_robots_positions.items():
-                        dist_to_other = np.linalg.norm(robot_pos_arr - np.array(other_pos))
-                        if dist_to_other < min_dist:
-                            min_dist = dist_to_other
-                            closest_id = other_id
-                            
-                    robot.id_to_call = closest_id
-                    print(f"Robot {robot.robot_id} finished relocation and called for help!")
-                    
-                # If the robot still in the relocation phase do levy exploration untill far enough from the rendezvous 
-                if not robot.relocation_done:
-                    # Explore safely near the treasure
-                    return self.levy_control(robot.state, dt, voronoi, min_time=MIN_TIME_TREAS, max_time=MAX_TIME_TREAS) 
-                else:
-                    return np.array([0.0, 0.0]) # Goal reached
-                    
-            # 3. Joining behavior for the robots that are called, when they arrive at the rendezvous point they stop
-            else:
-                return np.array([0.0, 0.0])
-            
-                    
-        # --- 4. JOINING STATE ---
-        elif robot.state_mode == "JOINING":
-            
-            robot_pos_arr = np.array(robot.state[:2])
-            dist_to_rendezvous = np.linalg.norm(robot.rendezvous_pos - robot_pos_arr)
-
-            # If arrived at destination (rendezvous point) stop, otherwise keep going there
-            if dist_to_rendezvous < 0.02: 
-                robot.state_mode = "TREASURE_FOUND"
-                robot.is_finder = False # Ensure it stays put
-                return np.array([0.0, 0.0])
-            else:
-                # Navigate straight to rendezvous point
-                return self.go_to_goal_control(robot.state, robot.rendezvous_pos, voronoi)
+            # Both the finder and the joining robots use the ring-based Lloyd control continuously.
+            return self.formation_loyd_control(robot.state, robot.target_treasure_pos, voronoi, ring_radius=cfg.RING_RADIUS)
             
         return np.array([0.0, 0.0]) # Safety Fallback
