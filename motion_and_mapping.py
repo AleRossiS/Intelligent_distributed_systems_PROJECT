@@ -487,10 +487,12 @@ class MotionController:
                     
                     # 2. Update the consensus estimate of the treasure position
                     if getattr(robot, 'consensus_treasure_pos', None) is None:
-                        # È il primo scopritore in assoluto
+                        # If it's the first measurement, initialize the consensus position with the current measurement
                         robot.consensus_treasure_pos = my_measurement
                     else:
-                        alpha = 1/robot.local_measure_count # Più misurazioni faccio, meno peso do alla nuova informazione per stabilizzare la stima
+                        # Update the consensus position using a weighted average
+                        alpha = 1/robot.local_measure_count 
+                        
                         robot.consensus_treasure_pos = (1.0 - alpha) * robot.consensus_treasure_pos + (alpha * my_measurement)
                         
                     robot.target_treasure_pos = robot.consensus_treasure_pos
@@ -512,7 +514,7 @@ class MotionController:
                 
                 # If the point is already inspected, we don't want to switch to INSPECTING state again 
                 for pt in robot.shared_map:
-                    if np.linalg.norm(target_arr - pt) < cfg.MAP_RESOLUTION * 3:
+                    if np.linalg.norm(target_arr - pt) < cfg.MAP_RESOLUTION * 4.5:
                         is_already_inspected = True
                         break 
                 
@@ -565,7 +567,7 @@ class MotionController:
             
             # Check for loop closure and if the robot is mapping an already well mapped area
             loop_closed = False
-            IGNORE_RADIUS_LOOP = cfg.MAP_RESOLUTION * 3
+            IGNORE_RADIUS_LOOP = cfg.MAP_RESOLUTION * 4.5
             safe_history_index = len(robot.shared_map) - 50 # Only check for loop closure with points that are at least 50 steps old to avoid false positives with current mapping area
             
             if safe_history_index > 0 and target_arr is not None:

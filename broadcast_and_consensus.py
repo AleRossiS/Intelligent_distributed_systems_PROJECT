@@ -7,7 +7,7 @@ def broadcast_data(broadcaster, robot_list):
     knowledge and sends it as a payload to all other robots in the system.
     """
 
-    TX_RANGE = 20.0
+    TX_RANGE = 200.0
 
     # 1. The broadcaster prepares its data packet (dictionary)
     payload = broadcaster.generate_payload()
