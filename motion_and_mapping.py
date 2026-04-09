@@ -73,6 +73,9 @@ class MotionController:
 
         is_near_boundary = False # Initialize the flag
         
+        # Initialize dist to infinity as fallback
+        dist = float('inf')
+        
         # Find the intersection point between the Voronoi and the heading line 
         if voronoi.exterior.intersects(heading_line):
             intersection = voronoi.exterior.intersection(heading_line) 
@@ -509,7 +512,7 @@ class MotionController:
                 
                 # If the point is already inspected, we don't want to switch to INSPECTING state again 
                 for pt in robot.shared_map:
-                    if np.linalg.norm(target_arr - pt) < cfg.MAP_RESOLUTION * 5:
+                    if np.linalg.norm(target_arr - pt) < cfg.MAP_RESOLUTION * 3:
                         is_already_inspected = True
                         break 
                 
@@ -562,7 +565,7 @@ class MotionController:
             
             # Check for loop closure and if the robot is mapping an already well mapped area
             loop_closed = False
-            IGNORE_RADIUS_LOOP = cfg.MAP_RESOLUTION * 5
+            IGNORE_RADIUS_LOOP = cfg.MAP_RESOLUTION * 3
             safe_history_index = len(robot.shared_map) - 50 # Only check for loop closure with points that are at least 50 steps old to avoid false positives with current mapping area
             
             if safe_history_index > 0 and target_arr is not None:
