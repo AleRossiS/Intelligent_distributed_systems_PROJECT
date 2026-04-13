@@ -24,7 +24,7 @@ font = pygame.font.SysFont('Arial', 12, bold=True)
 
 # --- 2. CREAZIONE OSTACOLI (Dal tuo test vecchio) ---
 env.add_walls()
-env.add_obstacle([(7, 1), (9, 1), (9, 3), (7, 3)])
+env.add_obstacle([(2, 0), (4, 0), (4, 2), (2, 2)])
 env.add_obstacle([(-9, -2), (-5, -2), (-5, -1.5), (-9, -1.5)])
 env.add_obstacle([(-5, -5.5), (-1, -5.5), (-1, -5), (-5, -5)])
 
@@ -44,7 +44,7 @@ env.add_obstacle(cerchio1)
 env.add_obstacle(cerchio2)
 
 # Tesoro
-treasure_pos = (11.5, -5)
+treasure_pos = (9, 4)
 env.add_target_object(cx=treasure_pos[0], cy=treasure_pos[1])
 
 # --- 3. SETUP ENTI E CONTROLLORI ---
