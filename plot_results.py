@@ -18,7 +18,7 @@ plt.rcParams.update({'font.size': 14, 'font.family': 'serif'})
 # L'array runs_error contiene np.nan (vuoto) prima della scoperta.
 # Per mostrare la convergenza, allineiamo tutte le run partendo
 # dal momento in cui ogni sciame ha trovato il tesoro (Time=0)
-OBSERVATION_WINDOW = 2000
+OBSERVATION_WINDOW = 500
 aligned_errors = []
 
 for run_err in runs_error:
@@ -36,18 +36,18 @@ if aligned_errors:
     std_err = np.std(err_matrix, axis=0)
     
     # Converti gli step in secondi (dt = 0.1)
-    time_axis = np.arange(OBSERVATION_WINDOW) * 0.1 
+    time_axis = np.arange(OBSERVATION_WINDOW) * 0.1
     
     plt.figure(figsize=(10, 6))
-    plt.plot(time_axis, mean_err, 'b-', linewidth=2.5, label='Errore Medio (Sciame)')
+    plt.plot(time_axis, mean_err, 'b-', linewidth=2.5, label='Mean error')
     plt.fill_between(time_axis, mean_err - std_err, mean_err + std_err, color='b', alpha=0.2, label=r'$\pm 1\sigma$')
     
     plt.axhline(y=0, color='black', linestyle='--', linewidth=1)
     
-    plt.title("Convergenza del Consensus")
-    plt.xlabel("Tempo dalla prima scoperta (Secondi)")
-    plt.ylabel("Errore di Stima sul Centro (Metri)")
-    plt.ylim(-0.5, max(mean_err) + 1.0)
+    plt.title("Consensus convergance")
+    plt.xlabel("Time after first detection [s]")
+    plt.ylabel("Target position estimation [m]")
+    plt.ylim(-0.0, max(mean_err)+ 0.05)
     plt.legend()
     plt.tight_layout()
     plt.savefig('grafico_errore.png', dpi=300)
@@ -70,7 +70,7 @@ for patch, color in zip(box['boxes'], colors):
     patch.set_facecolor(color)
     
 plt.title("Time distribution for arrival at the Treasure")
-plt.ylabel("Tempo (Secondi)")
+plt.ylabel("Time [s]")
 plt.tight_layout()
 plt.savefig('grafico_arrivi.png', dpi=300)
 print("Grafico 2: 'grafico_arrivi.png' salvato.")
