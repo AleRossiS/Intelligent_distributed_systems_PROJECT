@@ -140,4 +140,30 @@ if trajectories_data:
     plt.savefig('grafico_traiettorie.png', dpi=300)
     print("Grafico 3: 'grafico_traiettorie.png' salvato.")
 
+    # =========================================================
+# GRAFICO 4: Distribuzione delle Scoperte (Pie Chart)
+# =========================================================
+first_finders = data.get('first_finders', [])
+
+if first_finders:
+    # Contiamo quante volte ha vinto R1, R2 e R3
+    wins = [
+        first_finders.count(1),
+        first_finders.count(2),
+        first_finders.count(3)
+    ]
+    
+    labels = ['Robot 1 (Red)', 'Robot 2 (Blue)', 'Robot 3 (Green)']
+    colors = ['lightcoral', 'lightblue', 'lightgreen']
+    
+    plt.figure(figsize=(7, 7))
+    # Creiamo il grafico a torta. 'explode' stacca leggermente le fette per un look più moderno
+    plt.pie(wins, labels=labels, colors=colors, autopct='%1.1f%%', 
+            startangle=140, explode=(0.05, 0.05, 0.05), shadow=True)
+    
+    plt.title("First Detection Distribution")
+    plt.tight_layout()
+    plt.savefig('grafico_scoperte.png', dpi=300)
+    print("Grafico 4: 'grafico_scoperte.png' salvato.")
+
 plt.show()

@@ -64,6 +64,7 @@ def run_single_simulation(run_id):
     step_counter = 0
     run_error_history = []
     run_t1 = run_t2 = run_t3 = None
+    run_first_finder = None
 
     while step_counter < MAX_STEPS:
         
@@ -95,6 +96,13 @@ def run_single_simulation(run_id):
 
         # RACCOLTA DATI
         sensed_count = sum([1 for r in [r1, r2, r3] if getattr(r, 'has_sensed_treasure', False)])
+
+        if run_first_finder is None:
+            # Controlla chi ha il flag True
+            finders = [r.robot_id for r in [r1, r2, r3] if getattr(r, 'has_sensed_treasure', False)]
+            if len(finders) > 0:
+                run_first_finder = finders[0]
+
         if sensed_count >= 1 and run_t1 is None: run_t1 = step_counter
         if sensed_count >= 2 and run_t2 is None: run_t2 = step_counter
         if sensed_count >= 3 and run_t3 is None: run_t3 = step_counter
@@ -128,7 +136,7 @@ def run_single_simulation(run_id):
         })
     
     # Ritorna i dati al processo principale
-    return run_error_history, arrival_times, run_trajectories
+    return run_error_history, arrival_times, run_trajectories, run_first_finder
 
 
 # =================================================================
@@ -138,7 +146,7 @@ if __name__ == '__main__': # <-- FONDAMENTALE PER IL MULTIPROCESSING IN PYTHON
 
     multiprocessing.set_start_method('spawn', force = True)
     
-    experiment_data = {'runs_error': [], 'arrival_times': [], 'trajectories': []}
+    experiment_data = {'runs_error': [], 'arrival_times': [], 'trajectories': [], 'first_finders': []}
     
     print(f"Avvio di {NUM_RUNS} simulazioni Monte Carlo in PARALLELO...")
     start_time = time()
@@ -157,11 +165,12 @@ if __name__ == '__main__': # <-- FONDAMENTALE PER IL MULTIPROCESSING IN PYTHON
         # as_completed restituisce un task non appena finisce (non in ordine)
         for future in concurrent.futures.as_completed(futures):
             # Otteniamo i dati restituiti dal return della funzione
-            error_hist, arrivals, trajectories = future.result()
+            error_hist, arrivals, trajectories, first_finder = future.result()
             
             experiment_data['runs_error'].append(error_hist)
             experiment_data['arrival_times'].append(arrivals)
             experiment_data['trajectories'].append(trajectories)
+            experiment_data['first_finders'].append(first_finder)
             
             # --- BARRA DI PROGRESSO GLOBALE SULLA STESSA RIGA ---
             runs_completed += 1
@@ -175,10 +184,10 @@ if __name__ == '__main__': # <-- FONDAMENTALE PER IL MULTIPROCESSING IN PYTHON
     # Tempo totale
     elapsed = time() - start_time
     
-    with open('experiment_results_final1.pkl', 'wb') as f:
+    with open('experiment_results_final2.pkl', 'wb') as f:
         pickle.dump(experiment_data, f)
         
     print(f"\nTutte le simulazioni sono concluse in {elapsed:.1f} secondi!")
-    print("Dati salvati con successo in 'experiment_results_final1.pkl'")
+    print("Dati salvati con successo in 'experiment_results_final2.pkl'")
 
 
