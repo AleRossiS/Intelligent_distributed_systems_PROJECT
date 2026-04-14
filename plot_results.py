@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # 1. Carica i Dati
-with open('experiment_results_final1.pkl', 'rb') as f:
+with open('experiment_results_final2.pkl', 'rb') as f:
     data = pickle.load(f)
 
 runs_error = data['runs_error']
