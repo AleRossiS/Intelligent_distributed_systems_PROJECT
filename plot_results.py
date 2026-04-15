@@ -118,7 +118,7 @@ if trajectories_data:
             # Un piccolo trucco: disegniamo la label della legenda solo per la PRIMA simulazione
             lbl = f"R{robot_data['id']} Trajectories" if run_idx == 0 else ""
             
-            plt.plot(robot_data['x'], robot_data['y'], color=color, alpha=0.1, linewidth=0.5, label=lbl)
+            plt.plot(robot_data['x'], robot_data['y'], color=color, alpha=0.5, linewidth=0.5, label=lbl)
 
     plt.title("Swarm Exploration Coverage (100 Simulations)")
     plt.xlabel("X Position [m]")
