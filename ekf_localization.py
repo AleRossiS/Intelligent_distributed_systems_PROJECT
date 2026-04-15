@@ -40,7 +40,7 @@ class GlobalCamera:
         Returns a noisy measurement [x, y, theta] if the robot is visible.
         Returns None if the robot is hidden behind an obstacle.
         """
-        if self.can_see(true_state[:2], obstacles_map):
+        if self.can_see(true_state, obstacles_map):
             # Generate Gaussian noise
             noise = np.random.normal(0, self.noise_std)
             
