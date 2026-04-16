@@ -54,3 +54,6 @@ _minted-*/
 # File di sistema spazzatura (se il tuo compagno usa Mac o Windows)
 .DS_Store
 Thumbs.db
+
+# simulation files (too big for git)
+*.pkl

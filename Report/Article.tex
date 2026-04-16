@@ -2,6 +2,7 @@
 
 \usepackage{blindtext}
 \usepackage{subcaption} % nel preambolo
+\usepackage{caption}
 
 % Please give the surname of the lead author for the running footer
 \leadauthor{Prof. Daniele Fontanelli} 
@@ -688,6 +689,9 @@ When a discovering robot updates its estimate with a new LiDAR measurement, it i
 
 To rigorously evaluate the performance and robustness of the proposed multi-agent framework, a statistical analysis was conducted. Relying on a single simulation run is insufficient to assess systems heavily influenced by stochastic processes, such as Lévy flight exploration, LiDAR measurement noise, and communication dynamics. Therefore, $100$ independent simulations were executed in a fully decentralized, parallelized environment. Each run was allowed a maximum simulated time of $600$ seconds, which provided ample time for the swarm to explore the environment, detect the target, and achieve formation.
 
+\subsubsection{Simulation walkthrough}
+The simulated room is a $30 \times 20$ meter square environment containing several static obstacles of varying shapes and sizes, as well as a single target object (the "treasure") placed in the top-right corner of the room. The robots start from fixed positions, placed in the top-left side of the room. As the simulation begins, the agents immediately commence their FSM in the SEARCHING state, navigating the environment as described in the previous sections. As the environment is explored, the robots build a shared map of the obstacles. Eventually, one of the robots detects the target, triggering the "Treasure Found" state. The swarm then transitions to the formation phase, where they converge around the target while continuously refining their shared estimate of its position through the consensus algorithm. The simulation concludes when the maximum time limit is reached.
+
 The statistical evaluation focused on three primary indicators:
 
 \subsubsection*{1) Map coverage}
@@ -745,7 +749,7 @@ Another interesting metric to observe is the first discovery distribution among 
     \label{fig:distribScoperte}
 \end{figure}
 
-Taking into account both Figures \ref{fig:grafico_traiettorie} and \ref{fig:distribScoperte}, it can be possible to motivate why the first detection distribution is not normal. As can be seen by the coverage of the simulated trajectories, the right-hand side of the map is primarily covered by green lines, indicating that the casuality of the Lévy Flight control in this particular environment leads to Robot 3 (green) exploring that particular portion of the map. Robots 1 and 2 tend to wonder around the left-hand side. 
+Taking into account both Figures \ref{fig:grafico_traiettorie} and \ref{fig:distribScoperte}, it can be possible to motivate why the first detection distribution is not uniform. As can be seen by the coverage of the simulated trajectories, the right-hand side of the map is primarily covered by green lines, indicating that the casuality of the Lévy Flight control in this particular environment leads to Robot 3 (green) exploring that particular portion of the map. Robots 1 and 2 tend to wonder around the left-hand side. 
 
 
 \subsection*{4) Formation convergence}
@@ -778,13 +782,16 @@ To evaluate the quality of the Extended Kalman Filter (EKF) estimation, we compu
     \label{fig:EKF_err}
 \end{figure}
 
-Specifically, the position error ,as the Euclidean distance between the true and estimated coordinates, and the heading error, as the absolute angular difference, were used.
+Specifically, the position error ,as the Euclidean distance between the true and estimated coordinates, and the heading error, as the absolute value of the angular difference, were used.
 
 As highlighted by the shaded regions in the plot, when the robot is occluded by obstacles and loses the global camera signal, the EKF is unable to perform the measurement update step. During these periods, the filter relies entirely on the prediction model (dead reckoning). Consequently, the estimation error inevitably grows due to the continuous accumulation of process noise and odometric drift.
 
+Interestingly, while the position error diverges rapidly during occlusions, the heading error appears relatively stable. This occurs because the angular estimation error evolves as a zero-mean random walk driven by a very small angular velocity noise; it grows slowly, and statistical compensations can occasionally bring the absolute error momentarily back near zero. However, due to the robot's constant forward velocity, even a fractional angular deviation generates a significant lateral drift over time, which explains the sharp divergence observed in the position error.
+
 This highlights the critical role of LiDAR-based Voronoi partitioning: it provides reactive obstacle avoidance, preventing collisions even when the global position belief is severely degraded. Moreover, the overall EKF performance remains highly satisfactory, successfully and instantly correcting the accumulated drift as soon as the camera line-of-sight is restored.
 
-
+\subsection*{6) Scalability Analysis}
+To assess the scalability of the proposed framework, additional simulations were conducted with varying swarm sizes (experiments with 1 and 5 robots). The key performance indicators, such as Time-To-First-Detection (TTFD), discovery distribution and convergence, were analyzed to understand how the system's efficiency and robustness evolve. As expected, decreasing the number of robots to 1 significantly increased the overall TTFD, while the convergence of the estimation error is notably faster in the first few seconds, but then plateaus at a higher value compared to the 3-robot and 5-robot cases. Conversely, increasing the swarm size to 5 reduced the overall TTFD and has the opposite effect on the convergence compared to the single-robot case. Moreover, the discovery distribution becomes more uniform as the number of robots increases, indicating a more balanced exploration of the environment. The results of this scalability analysis are available in the appendix section of the report.  
 
 
 \section*{Conclusions}
@@ -797,10 +804,21 @@ The transition from exploration to formation control, managed by a robust Finite
 Finally, the statistical validation conducted through simulations highlighted the strength of the proposed two-tier consensus algorithm. The temporal filtering combined with the Broadcast Gossip network allowed the swarm to dramatically reduce the estimation error over time. The results demonstrated that the collective intelligence of the swarm not only reduces the Time-To-First-Detection (TTFD) variance compared to a single agent, but also achieves an asymptotic convergence of the localization error to near-zero values, proving the overall reliability and scalability of the proposed approach.
 
 
-\subsection*{Possible Improvements}
-Future works on the project would see improvements on both simulation setup and architecture. As a manner of fact, the current framework with Lévy Flight controller can be quite slow in larger or open environments, tracked regions are frequently revisited, bad placed obstacles could lead to the robots getting trapped in a map sector. To overcome this, the implementation of a more sophisticated exploration strategy, such as what is proposed in \cite{zhou2021fuel}, could be considered. This method implements a frontier information structure (FIS) with a hierarchical planner, which allows each individual robot for efficient global coverage. 
+\section*{Possible Improvements}
 
-Another topic that could be further explored is the communication network. In the current implementation, the Broadcast Gossip algorithm assumes a perfect communication channel with no losses or delays. Future work could investigate the impact of realistic communication constraints, such as packet loss, latency, and limited bandwidth, on the convergence properties of the consensus algorithm. Additionally, exploring alternative consensus strategies that are more robust to communication failures could enhance the reliability of the swarm in real-world scenarios.
+Future developments of this project could address current limitations by expanding on both the simulation setup and the control architecture. Specifically, the following key improvements are proposed:
+
+\subsubsection*{Advanced Exploration Strategies}
+The current framework relies on a Lévy Flight controller, which can be inefficient in larger or open environments. It frequently leads to the revisitation of already explored regions, and poorly placed obstacles can cause robots to become trapped in isolated map sectors. To overcome this, a more sophisticated exploration strategy could be implemented, such as the one proposed in \cite{zhou2021fuel}. This method utilizes a Frontier Information Structure (FIS) combined with a hierarchical planner, enabling the swarm to achieve faster and more efficient global coverage.
+
+\subsubsection*{Realistic Robot Kinematics and Dynamics}
+Currently, the agents are modeled using simplified unicycle kinematics. While effective for high-level control design, this model lacks physical fidelity. Future work should transition to a more realistic differential-drive formulation. Incorporating constraints such as motor torque limits, inertia, and non-linear wheel slip would significantly reduce the reality gap, facilitating a smoother transition from simulation to real-world deployment.
+
+\subsubsection*{Refined Perception and Mapping}
+The current mapping procedure relies on a simplified assumption regarding the LiDAR measurements. Specifically, the fact that robots can detect and potentially map each other as static obstacles is not explicitly handled. A necessary improvement would be the implementation of a dynamic obstacle tracking and filtering system. This would allow the agents to accurately distinguish between their moving peers and the static environment, preventing the corruption of the shared global map.
+
+\subsubsection*{Robust Communication and Consensus}
+The current implementation of the linear consensus algorithm assumes an ideal communication network with no data loss or delays. Future research should investigate the impact of realistic communication constraints, such as packet loss, latency, and limited bandwidth, on the convergence properties of the system. Additionally, exploring asynchronous consensus strategies that are intrinsically more robust to network failures and intermittent connectivity would greatly enhance the reliability of the swarm in unstructured real-world scenarios.
 
 %\begin{acknowledgements}
 %\blindtext
@@ -814,6 +832,30 @@ Another topic that could be further explored is the communication network. In th
 %the command above ignores this section for word count
 \onecolumn
 \newpage
+
+\section*{Appendix}
+
+% using all the space of the page rather than the two-colum format
+
+\begin{figure*}
+    \centering
+    \captionsetup{labelformat=empty}
+    \begin{minipage}{0.3\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Figures/Appendix/grafico_arrivi_1_ROBOTS.png}
+    \end{minipage}
+        \begin{minipage}{0.3\textwidth}
+            \centering
+            \includegraphics[width=\textwidth]{Figures/Appendix/grafico_arrivi_1_ROBOTS.png}
+    \end{minipage}
+        \begin{minipage}{0.3\textwidth}
+            \centering
+            \includegraphics[width=\textwidth]{Figures/Appendix/grafico_arrivi_1_ROBOTS.png}
+    \end{minipage}
+    \captionsetup{labelformat=default}
+    \caption{Distance error from the target ring radius during exploration and formation phases across multiple independent runs.}
+    \label{fig:err_formation}
+\end{figure*}
 
 % \section*{Word Counts}
 % This section is \textit{not} included in the word count. 

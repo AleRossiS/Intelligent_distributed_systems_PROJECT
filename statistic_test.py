@@ -23,13 +23,14 @@ HEADLESS_MODE = True
 NUM_RUNS = 100
 MAX_STEPS = 6000
 
+SWARM_SIZE = 1
+
 # =================================================================
 # FUNZIONE DELLA SINGOLA SIMULAZIONE (Eseguita dai vari Core)
 # =================================================================
 def run_single_simulation(run_id):
     """Questa funzione esegue una simulazione completa in isolamento e restituisce i dati."""
-    # (Non stampiamo nulla qui dentro per non sporcare il terminale)
-    
+
     env = Environment(width=1200)
     env.add_walls()
     env.add_obstacle([(2, 0), (4, 0), (4, 2), (2, 2)])
@@ -46,14 +47,27 @@ def run_single_simulation(run_id):
     true_treasure_center = np.array([treasure_pos[0], treasure_pos[1]])
 
     global_camera = GlobalCamera(x=14.0, y=9.0)
-    r1 = Robot(robot_id=1, x=-1.0, y=3.0, color='tab:red')
-    r2 = Robot(robot_id=2, x=0.0, y=1.0, color='tab:blue')
-    r3 = Robot(robot_id=3, x=-7.5, y=-7.5, color='tab:green') 
 
-    env.add_robot(r1); env.add_robot(r2); env.add_robot(r3)
+    robot_configs = [
+        {'x': -7.0, 'y': 3.0, 'color': 'tab:red'},
+        {'x': -6.0, 'y': 1.0, 'color': 'tab:blue'},
+        {'x': -8.5, 'y': 2.5, 'color': 'tab:green'},
+        {'x': -8.0, 'y': 5.0, 'color': 'tab:orange'},  # Posizione Robot 4
+        {'x': -10.0, 'y': 3.0, 'color': 'tab:purple'}  # Posizione Robot 5
+    ]
 
-    vor_r1, vor_r2, vor_r3 = VoronoiCell(), VoronoiCell(), VoronoiCell()
-    ctrl1, ctrl2, ctrl3 = MotionController(), MotionController(), MotionController()
+    robots = []
+    voronois = []
+    controllers = []
+    
+    for i in range(SWARM_SIZE):
+        conf = robot_configs[i]
+        r = Robot(robot_id=i+1, x=conf['x'], y=conf['y'], color=conf['color'])
+        env.add_robot(r)
+        robots.append(r)
+        voronois.append(VoronoiCell())
+        controllers.append(MotionController())
+
     dt = 0.1
 
     for current_robot in env.robots:
@@ -63,51 +77,55 @@ def run_single_simulation(run_id):
 
     step_counter = 0
     run_error_history = []
-    run_t1 = run_t2 = run_t3 = None
+
+    run_arrival_times = [None] * SWARM_SIZE 
     run_first_finder = None
 
     while step_counter < MAX_STEPS:
-        
-        pos_r1 = np.vstack((r1.state[:2], list(r1.other_robots_positions.values())))
-        pos_r2 = np.vstack((r2.state[:2], list(r2.other_robots_positions.values())))
-        pos_r3 = np.vstack((r3.state[:2], list(r3.other_robots_positions.values())))
 
         real_obs_map = env.get_obstacle_polygons()
         inflated_obs_map = env.get_inflated_obstacles()
 
-        cella1, _ = vor_r1.compute_and_clip(r1.true_state, r1.state, pos_r1, robot_index=0, obstacles=inflated_obs_map)
-        cella2, _ = vor_r2.compute_and_clip(r2.true_state, r2.state, pos_r2, robot_index=0, obstacles=inflated_obs_map)
-        cella3, _ = vor_r3.compute_and_clip(r3.true_state, r3.state, pos_r3, robot_index=0, obstacles=inflated_obs_map)
+        controls = []
 
-        for r in [r1, r2, r3]:
+        for i, r in enumerate(robots):
+            # Gestione dinamica: se ci sono altri robot usiamo vstack, altrimenti passiamo solo noi stessi
+            other_pos = list(r.other_robots_positions.values())
+            if len(other_pos) > 0:
+                pos_r = np.vstack((r.state[:2], other_pos))
+            else:
+                pos_r = np.array([r.state[:2]]) # Passa un array 2D con un solo elemento
+            cella, _ = voronois[i].compute_and_clip(r.true_state, r.state, pos_r, robot_index=0, obstacles=inflated_obs_map)
+            
             if not hasattr(r, 'simulation_time'): r.simulation_time = 0.0
             r.simulation_time += dt
-
-        u1 = ctrl1.get_control(r1, dt, cella1[0], inflated_obs_map, env.target_object)
-        u2 = ctrl2.get_control(r2, dt, cella2[0], inflated_obs_map, env.target_object)
-        u3 = ctrl3.get_control(r3, dt, cella3[0], inflated_obs_map, env.target_object)
+            
+            u = controllers[i].get_control(r, dt, cella[0], inflated_obs_map, env.target_object)
+            controls.append(u)
 
         for r in env.robots:
             if r.tick_timer(): broadcast_data(r, env.robots)
 
-        for r, u in zip([r1, r2, r3], [u1, u2, u3]):
+        for i, r in enumerate(robots):
             z_camera = global_camera.get_measurement(r.true_state, real_obs_map)
-            r.update_pose(u, dt, camera_measurement=z_camera)
+            r.update_pose(controls[i], dt, camera_measurement=z_camera)
 
         # RACCOLTA DATI
-        sensed_count = sum([1 for r in [r1, r2, r3] if getattr(r, 'has_sensed_treasure', False)])
+        sensed_count = sum([1 for r in robots if getattr(r, 'has_sensed_treasure', False)])
 
         if run_first_finder is None:
             # Controlla chi ha il flag True
-            finders = [r.robot_id for r in [r1, r2, r3] if getattr(r, 'has_sensed_treasure', False)]
+            finders = [r.robot_id for r in robots if getattr(r, 'has_sensed_treasure', False)]
             if len(finders) > 0:
                 run_first_finder = finders[0]
+            
+        # Registra tempi di arrivo
+        for n in range(SWARM_SIZE):
+            if sensed_count >= (n + 1) and run_arrival_times[n] is None:
+                run_arrival_times[n] = step_counter
 
-        if sensed_count >= 1 and run_t1 is None: run_t1 = step_counter
-        if sensed_count >= 2 and run_t2 is None: run_t2 = step_counter
-        if sensed_count >= 3 and run_t3 is None: run_t3 = step_counter
 
-        estimates = [getattr(r, 'consensus_treasure_pos', None) for r in [r1, r2, r3]]
+        estimates = [getattr(r, 'consensus_treasure_pos', None) for r in robots]
         valid_estimates = [e for e in estimates if e is not None]
         
         if len(valid_estimates) > 0:
@@ -119,15 +137,11 @@ def run_single_simulation(run_id):
             
         step_counter += 1
 
-    arrival_times = (
-        run_t1 if run_t1 else MAX_STEPS,
-        run_t2 if run_t2 else MAX_STEPS,
-        run_t3 if run_t3 else MAX_STEPS
-    )
+    arrival_times = [t if t is not None else MAX_STEPS for t in run_arrival_times]
 
     # Estraiamo le traiettorie dell'intera run
     run_trajectories = []
-    for r in [r1, r2, r3]:
+    for r in robots:
         run_trajectories.append({
             'id': r.robot_id,
             'color': r.color,
@@ -142,13 +156,13 @@ def run_single_simulation(run_id):
 # =================================================================
 # GESTORE MULTIPROCESSING E BARRA DI CARICAMENTO (Main Process)
 # =================================================================
-if __name__ == '__main__': # <-- FONDAMENTALE PER IL MULTIPROCESSING IN PYTHON
+if __name__ == '__main__':
 
     multiprocessing.set_start_method('spawn', force = True)
     
     experiment_data = {'runs_error': [], 'arrival_times': [], 'trajectories': [], 'first_finders': []}
     
-    print(f"Avvio di {NUM_RUNS} simulazioni Monte Carlo in PARALLELO...")
+    print(f"Avvio di {NUM_RUNS} simulazioni in PARALLELO con {SWARM_SIZE} robot...")
     start_time = time()
 
     cores_to_use = max(1, os.cpu_count() - 1)
@@ -159,7 +173,6 @@ if __name__ == '__main__': # <-- FONDAMENTALE PER IL MULTIPROCESSING IN PYTHON
         
         # Sottomettiamo tutti i task in blocco
         futures = [executor.submit(run_single_simulation, i) for i in range(NUM_RUNS)]
-        
         runs_completed = 0
         
         # as_completed restituisce un task non appena finisce (non in ordine)
@@ -172,7 +185,7 @@ if __name__ == '__main__': # <-- FONDAMENTALE PER IL MULTIPROCESSING IN PYTHON
             experiment_data['trajectories'].append(trajectories)
             experiment_data['first_finders'].append(first_finder)
             
-            # --- BARRA DI PROGRESSO GLOBALE SULLA STESSA RIGA ---
+            # barra di progressione
             runs_completed += 1
             percent = int((runs_completed / NUM_RUNS) * 100)
             blocchi_pieni = int(percent / 5)
@@ -184,10 +197,11 @@ if __name__ == '__main__': # <-- FONDAMENTALE PER IL MULTIPROCESSING IN PYTHON
     # Tempo totale
     elapsed = time() - start_time
     
-    with open('experiment_results_final2.pkl', 'wb') as f:
+    filename = f'experiments_pkl_files/experiment_results_{SWARM_SIZE}_robots.pkl'
+    with open(filename, 'wb') as f:
         pickle.dump(experiment_data, f)
         
     print(f"\nTutte le simulazioni sono concluse in {elapsed:.1f} secondi!")
-    print("Dati salvati con successo in 'experiment_results_final2.pkl'")
+    print(f"Dati salvati con successo in '{filename}'")
 
 
