@@ -30,7 +30,7 @@ RING_RADIUS = BL_RANGE * 0.8 # Distance from the goal at which the robot is cons
 SIGMA_V = 0.05 # m/s
 SIGMA_W = 0.01 # rad/s
 EKF_PROCESS_NOISE_STD = np.array([SIGMA_V, SIGMA_W])     # Used for the process noise in the EKF (Cov matrix Q)
-CAM_NOISE_STD = np.array([0.1, 0.1, 0.05])    # USed for the measurement noise in the camera (Cov matrix R)
+CAM_NOISE_STD = np.array([0.1, 0.1, 0.1])    # USed for the measurement noise in the camera (Cov matrix R)
 
 # --- LIDAR NOISE ---
 LIDAR_NOISE_STD = 0.05 # Standard deviation of the noise added to the LiDAR measurements (in meters) 

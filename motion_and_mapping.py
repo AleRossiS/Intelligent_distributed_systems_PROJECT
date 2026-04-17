@@ -24,7 +24,7 @@ SCALE = 1.0         # Lévy distribution scale parameter (scale > 0)
 ## Obstacle avoidance parameters ##
 D_MIN = cfg.ROBOT_RADIUS * 2  # Minimum distance to start avoiding obstacles
 REPULSIVE_GAIN_FOR_LEVY = 8 # Repulsive control gain for obstacle avoidance during Levy flight 
-REPULSIVE_GAIN_FOR_LOYD = 0.5 # Repulsive control gain for obstacle avoidance during Lloyd's algorithm
+REPULSIVE_GAIN_FOR_LOYD = 4 # Repulsive control gain for obstacle avoidance during Lloyd's algorithm
 
 
         
@@ -121,7 +121,7 @@ class MotionController:
             self.time_remaining = np.clip(abs(raw_time), min_time, max_time)  # Ensure time is within bounds
             
         # Obscale avoidance repulsive control and Levy Flight direction velocity vector
-        v_rep = self.obstacle_avoidance_control(robot_state, voronoi) # repulsive vector 
+        v_rep = REPULSIVE_GAIN_FOR_LEVY * self.obstacle_avoidance_control(robot_state, voronoi) # repulsive vector 
         v_levy = np.array([np.cos(self.levy_theta), np.sin(self.levy_theta)]) # Levy vector 
     
         # New target angle based on the combination of repulsive and Levy vectors
@@ -179,7 +179,7 @@ class MotionController:
                 dir = dir / np.linalg.norm(dir) # Normalize the direction
                 
                 # Quadratic repulsive conrtol 
-                repulsive_force = REPULSIVE_GAIN_FOR_LEVY * ((D_MIN - dist) ** 2) * dir
+                repulsive_force = ((D_MIN - dist) ** 2) * dir
 
         return repulsive_force
 
