@@ -242,6 +242,8 @@ class Robot:
         'tab:blue': (31, 119, 180),
         'tab:red': (214, 39, 40),
         'tab:green': (44, 160, 44),
+        'tab:orange': (255, 127, 14),  
+        'tab:purple': (148, 103, 189),  
         'black': (0, 0, 0)
     }
     color_rgb = color_map.get(self.color, (31, 119, 180)) # Default blue
