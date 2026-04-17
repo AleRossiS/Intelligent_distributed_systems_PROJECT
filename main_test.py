@@ -11,30 +11,30 @@ from broadcast_and_consensus import broadcast_data
 from ekf_localization import GlobalCamera
 import config as cfg
 
-# --- 1. SETUP INIZIALE ---
+# --- 1. INITIAL SETUP ---
 pygame.init()
 
-# Inizializzazione Ambiente (la classe calcola in automatico WIDTH e HEIGHT)
+# Environment Initialization (the class automatically computes WIDTH and HEIGHT)
 env = Environment(width=1200)
 
 screen = pygame.display.set_mode((env.WIDTH, env.HEIGHT))
-pygame.display.set_caption("Simulazione Robotica con Voronoi e EKF")
+pygame.display.set_caption("Robotic Simulation with Voronoi and EKF")
 clock = pygame.time.Clock()
 font = pygame.font.SysFont('Arial', 12, bold=True)
 
-# --- 2. CREAZIONE OSTACOLI (Dal tuo test vecchio) ---
+# --- 2. OBSTACLE CREATION ---
 env.add_walls()
 env.add_obstacle([(2, 0), (4, 0), (4, 2), (2, 2)])
 env.add_obstacle([(-9, -2), (-5, -2), (-5, -1.5), (-9, -1.5)])
 env.add_obstacle([(-5, -5.5), (-1, -5.5), (-1, -5), (-5, -5)])
 
-# Il piccolo cerchio 1
+# Small circle 1
 cx1, cy1 = -5.0, 6.0
 raggio1 = 1.0
 num_lati1 = 20
 cerchio1 = [(cx1 + raggio1 * np.cos(2 * np.pi * i / num_lati1), cy1 + raggio1 * np.sin(2 * np.pi * i / num_lati1)) for i in range(num_lati1)]
 
-# Il piccolo cerchio 2
+# Small circle 2
 cx2, cy2 = 7.0, -6.0
 raggio2 = 1.0
 num_lati2 = 20
@@ -43,11 +43,11 @@ cerchio2 = [(cx2 + raggio2 * np.cos(2 * np.pi * i / num_lati2), cy2 + raggio2 * 
 env.add_obstacle(cerchio1)
 env.add_obstacle(cerchio2)
 
-# Tesoro
+# Treasure
 treasure_pos = (9, 4)
 env.add_target_object(cx=treasure_pos[0], cy=treasure_pos[1])
 
-# --- 3. SETUP ENTI E CONTROLLORI ---
+# --- 3. ENTITIES AND CONTROLLERS SETUP ---
 global_camera = GlobalCamera(x=14.0, y=9.0)
 
 r1 = Robot(robot_id=1, x=-7.0, y=3.0, color='tab:red')
@@ -68,7 +68,7 @@ ctrl3 = MotionController()
 
 dt = 0.1
 
-# INIZIALIZZAZIONE MEMORIA
+# MEMORY INITIALIZATION
 for current_robot in env.robots:
     for other_robot in env.robots:
         if current_robot.robot_id != other_robot.robot_id:
@@ -80,12 +80,12 @@ step_counter = 0
 running = True
 
 while running:
-    # Gestione eventi
+    # Event handling
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
     
-    # Preparazione array di posizioni stimate con EKF per il calcolo delle celle di Voronoi
+    # Preparation of estimated position arrays with EKF for Voronoi cells computation
     pos_r1 = np.vstack((r1.state[:2], list(r1.other_robots_positions.values())))
     pos_r2 = np.vstack((r2.state[:2], list(r2.other_robots_positions.values())))
     pos_r3 = np.vstack((r3.state[:2], list(r3.other_robots_positions.values())))
@@ -111,12 +111,12 @@ while running:
             r.simulation_time = 0.0
         r.simulation_time += dt
 
-    # Controllo del Moto
+    # Motion Control
     u1 = ctrl1.get_control(r1, dt, cella1[0], inflated_obs_map, env.target_object)
     u2 = ctrl2.get_control(r2, dt, cella2[0], inflated_obs_map, env.target_object)
     u3 = ctrl3.get_control(r3, dt, cella3[0], inflated_obs_map, env.target_object)
 
-    # Rete e Trasmissione
+    # Network and Transmission
     for r in env.robots:
         if r.tick_timer():
             broadcast_data(r, env.robots)
@@ -124,38 +124,37 @@ while running:
         else:
             r.is_transmitting = False
 
-    # Fisica e EKF + Preparazione per il Rendering
+    # Physics and EKF + Preparation for Rendering
     cam_statuses = {}
     for r, u in zip([r1, r2, r3], [u1, u2, u3]):
         z_camera = global_camera.get_measurement(r.true_state, real_obs_map)
         r.update_pose(u, dt, camera_measurement=z_camera)
         
-        # Registriamo lo stato per passarlo al renderer
+        # Record the state to pass it to the renderer
         cam_statuses[r.robot_id] = "TRACKING" if z_camera is not None else "NO SIGNAL"
 
     # ==========================================
-    # --- 5. RENDERING PULITO CON LE CLASSI ---
+    # --- 5.RENDERING ---
     # ==========================================
     
-    # 1. Disegna tutto l'ambiente, gli ostacoli, il tesoro e i robot
+    # 1. Draw the entire environment, obstacles, treasure, and robots
     cam_position = (global_camera.pos.x, global_camera.pos.y)
     env.render(screen, font, camera_statuses=cam_statuses, camera_pos=cam_position)
     
-    # 2. Disegna le celle di Voronoi trasparenti per ogni robot
+    # 2. Draw transparent Voronoi cells for each robot
     vor_r1.plot_cells(screen, env.world_to_pixel, polygons=cella1, centroids=centroid1, cell_color=(255, 255, 204, 70))
     vor_r2.plot_cells(screen, env.world_to_pixel, polygons=cella2, centroids=centroid2, cell_color=(255, 255, 204, 70))
     vor_r3.plot_cells(screen, env.world_to_pixel, polygons=cella3, centroids=centroid3, cell_color=(255, 255, 204, 70))
 
-    # (Opzionale) Disegna la telecamera globale. 
-    # Puoi metterla qui oppure inserirla dentro la funzione env.render()!
+    # (Optional) Draw the global camera. 
     cam_px = env.world_to_pixel(global_camera.pos.x, global_camera.pos.y)
     pygame.draw.rect(screen, (255, 0, 255), (cam_px[0]-5, cam_px[1]-5, 10, 10))
 
-    # Aggiorna lo schermo a 30 FPS
+    # Update the screen at 30 FPS
     pygame.display.flip()
     clock.tick(30)
 
-    # --- 6. PRINT IN CONSOLE ---
+    # --- 6. CONSOLE PRINT ---
     if step_counter % 1 == 0:
         def fmt_est(r):
             has_sensed = getattr(r, 'has_sensed_treasure', False)
