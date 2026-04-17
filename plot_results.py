@@ -1,16 +1,30 @@
-import pickle
+import pickle 
 import numpy as np
 import matplotlib.pyplot as plt
 
 # 1. Carica i Dati
-with open('experiment_results_final2.pkl', 'rb') as f:
-    data = pickle.load(f)
+FILENAME = 'experiments_pkl_files/experiment_results_1_robots.pkl' 
+
+try:
+    with open(FILENAME, 'rb') as f:
+        data = pickle.load(f)
+except FileNotFoundError:
+    print(f"Errore: Il file {FILENAME} non è stato trovato. Assicurati di aver lanciato la simulazione.")
+    exit()
 
 runs_error = data['runs_error']
 arrival_times = data['arrival_times']
 
+# DEDUCIAMO LA DIMENSIONE DELLO SCIAME DAI DATI STESSI
+SWARM_SIZE = len(arrival_times[0])
+print(f"Analisi dati avviata per uno sciame di {SWARM_SIZE} robot...")
+
 plt.style.use('seaborn-v0_8-whitegrid')
 plt.rcParams.update({'font.size': 14, 'font.family': 'serif'})
+
+# Palette di colori espansa per supportare fino a 5 robot
+ROBOT_COLORS = ['lightcoral', 'lightblue', 'lightgreen', 'moccasin', 'thistle']
+ROBOT_LABELS = [f'Robot {i+1}' for i in range(SWARM_SIZE)]
 
 # =========================================================
 # GRAFICO 1: Errore di Stima del Tesoro (Sensor Fusion)
@@ -44,36 +58,42 @@ if aligned_errors:
     
     plt.axhline(y=0, color='black', linestyle='--', linewidth=1)
     
-    plt.title("Consensus convergance")
+    plt.title(f"Consensus convergence ({SWARM_SIZE} Robots)")
     plt.xlabel("Time after first detection [s]")
     plt.ylabel("Target position estimation [m]")
     plt.ylim(-0.0, max(mean_err)+ 0.05)
     plt.legend()
     plt.tight_layout()
-    plt.savefig('grafico_errore.png', dpi=300)
-    print("Grafico 1: 'grafico_errore.png' salvato.")
+    plt.savefig(f'simulation_FIGURES/grafico_errore_{SWARM_SIZE}_ROBOTS.png', dpi=300)
+    print(f"Grafico 1: 'grafico_errore_{SWARM_SIZE}_ROBOTS.png' salvato.")
 
 # =========================================================
 # GRAFICO 2: Time to First Detection (Boxplot)
 # =========================================================
-# Convertiamo i TTFD in secondi
-t1_sec = [t[0] * 0.1 for t in arrival_times]
-t2_sec = [t[1] * 0.1 for t in arrival_times]
-t3_sec = [t[2] * 0.1 for t in arrival_times]
+
+times_sec = []
+box_labels = []
+
+for i in range(SWARM_SIZE):
+    # Estraiamo l'i-esimo elemento di ogni simulazione e lo convertiamo in secondi
+    t_list = [t[i] * 0.1 for t in arrival_times if t[i] is not None]
+    times_sec.append(t_list)
+    # Creiamo etichette come "Robot 1 (FTT)", "Robot 2 (STT)" ecc...
+    suffix = "First" if i == 0 else "Second" if i == 1 else "Third" if i == 2 else "Fourth" if i == 3 else "Fifth"
+    box_labels.append(f'{suffix}')
 
 plt.figure(figsize=(8, 6))
 
-box = plt.boxplot([t1_sec, t2_sec, t3_sec], tick_labels=['Robot 1 (FTT)', 'Robot 2 (STT)', 'Robot 3 (TTT)'], patch_artist=True)
+box = plt.boxplot(times_sec, tick_labels=box_labels, patch_artist=True)
 
-colors = ['lightblue', 'lightgreen', 'lightcoral']
-for patch, color in zip(box['boxes'], colors):
+for patch, color in zip(box['boxes'], ROBOT_COLORS[:SWARM_SIZE]):
     patch.set_facecolor(color)
     
-plt.title("Time distribution for arrival at the Treasure")
+plt.title(f"Time distribution for arrival at the Treasure ({SWARM_SIZE} Robots)")
 plt.ylabel("Time [s]")
 plt.tight_layout()
-plt.savefig('grafico_arrivi.png', dpi=300)
-print("Grafico 2: 'grafico_arrivi.png' salvato.")
+plt.savefig(f'simulation_FIGURES/grafico_arrivi_{SWARM_SIZE}_ROBOTS.png', dpi=300)
+print(f"Grafico 2: 'grafico_arrivi_{SWARM_SIZE}_ROBOTS.png' salvato.")
 
 # =========================================================
 # GRAFICO 3: Traiettorie Sovrapposte (Heat Map)
@@ -107,20 +127,12 @@ if trajectories_data:
 
     # Iteriamo su TUTTE le 100 simulazioni
     for run_idx, run_traj in enumerate(trajectories_data):
-        # Ogni simulazione ha i percorsi di r1, r2, r3
         for robot_data in run_traj:
             color = robot_data['color']
-            
-            # Se vuoi che il rosso, blu e verde siano più scuri, lascia il loro colore.
-            # Se vuoi un effetto più "heat map" uniforme, potresti forzare un colore unico (es. 'black')
-            # Qui usiamo i loro colori ma li rendiamo super trasparenti (alpha=0.05) e sottili
-            
-            # Un piccolo trucco: disegniamo la label della legenda solo per la PRIMA simulazione
-            lbl = f"R{robot_data['id']} Trajectories" if run_idx == 0 else ""
-            
-            plt.plot(robot_data['x'], robot_data['y'], color=color, alpha=0.1, linewidth=0.5, label=lbl)
+            lbl = f"R{robot_data['id']}" if run_idx == 0 else ""
+            plt.plot(robot_data['x'], robot_data['y'], color=color, alpha=0.5, linewidth=0.5, label=lbl)
 
-    plt.title("Swarm Exploration Coverage (100 Simulations)")
+    plt.title(f"Swarm Exploration Coverage ({SWARM_SIZE} Robots, 100 Runs)")
     plt.xlabel("X Position [m]")
     plt.ylabel("Y Position [m]")
     
@@ -137,8 +149,8 @@ if trajectories_data:
     plt.ylim(-10, 10)
     plt.axis('equal') # Mantiene le proporzioni quadrate
     plt.tight_layout()
-    plt.savefig('grafico_traiettorie.png', dpi=300)
-    print("Grafico 3: 'grafico_traiettorie.png' salvato.")
+    plt.savefig(f'simulation_FIGURES/grafico_traiettorie_{SWARM_SIZE}_ROBOTS.png', dpi=300)
+    print(f"Grafico 3: 'grafico_traiettorie_{SWARM_SIZE}_ROBOTS.png' salvato.")
 
     # =========================================================
 # GRAFICO 4: Distribuzione delle Scoperte (Pie Chart)
@@ -146,24 +158,28 @@ if trajectories_data:
 first_finders = data.get('first_finders', [])
 
 if first_finders:
-    # Contiamo quante volte ha vinto R1, R2 e R3
-    wins = [
-        first_finders.count(1),
-        first_finders.count(2),
-        first_finders.count(3)
-    ]
-    
-    labels = ['Robot 1 (Red)', 'Robot 2 (Blue)', 'Robot 3 (Green)']
-    colors = ['lightcoral', 'lightblue', 'lightgreen']
-    
-    plt.figure(figsize=(7, 7))
-    # Creiamo il grafico a torta. 'explode' stacca leggermente le fette per un look più moderno
-    plt.pie(wins, labels=labels, colors=colors, autopct='%1.1f%%', 
-            startangle=140, explode=(0.05, 0.05, 0.05), shadow=True)
-    
-    plt.title("First Detection Distribution")
-    plt.tight_layout()
-    plt.savefig('grafico_scoperte.png', dpi=300)
-    print("Grafico 4: 'grafico_scoperte.png' salvato.")
+    wins = [first_finders.count(i+1) for i in range(SWARM_SIZE)]
+
+    valid_wins = []
+    valid_labels = []
+    valid_colors = []
+
+    for i in range(SWARM_SIZE):
+        if wins[i] > 0:
+            valid_wins.append(wins[i])
+            valid_labels.append(ROBOT_LABELS[i])
+            valid_colors.append(ROBOT_COLORS[i])
+
+    if valid_wins:
+        plt.figure(figsize=(7, 7))
+        explode = tuple([0.05] * len(valid_wins))
+        
+        plt.pie(valid_wins, labels=valid_labels, colors=valid_colors, autopct='%1.1f%%', 
+                startangle=140, explode=explode, shadow=True)
+        
+        plt.title(f"First Detection Distribution ({SWARM_SIZE} Robots)")
+        plt.tight_layout()
+        plt.savefig(f'simulation_FIGURES/grafico_scoperte_{SWARM_SIZE}_ROBOTS.png', dpi=300)
+        print(f"Grafico 4: 'grafico_scoperte_{SWARM_SIZE}_ROBOTS.png' salvato.")
 
 plt.show()

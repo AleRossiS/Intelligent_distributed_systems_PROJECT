@@ -2,6 +2,7 @@
 
 \usepackage{blindtext}
 \usepackage{subcaption} % nel preambolo
+\usepackage{caption}
 
 % Please give the surname of the lead author for the running footer
 \leadauthor{Prof. Daniele Fontanelli} 
@@ -13,7 +14,7 @@
 
 % Use letters for affiliations, numbers to show equal authorship (if applicable) and to indicate the corresponding author
 \author[1]{Alessandro Rossi}
-\author[2]{Lorenzo Franco}
+\author[1]{Lorenzo Franco}
 
 \affil[1]{Intelligent Distributed Systems, master's degree in mechatronics engineering, University of Trento}
 
@@ -44,10 +45,10 @@ conclusions about the effectiveness of the proposed approach in solving the trea
 \section*{Introduction}
 This project presents a control framework for a swarm of mobile robots
 that finds, estimates and encircles a target. The system combines a
-lidar, for obstacle detection, an Extended Kalman Filter (EKF) for state
+LiDAR, for obstacle detection, an Extended Kalman Filter (EKF) for state
 estimation and linear consensus for coordination. The treasure is supposed to be a point object emitting a weak radio signal, the detection is performed by a
-simple thresholding of the received signal strength. The robots are able
-to coordinate their movements using a linear consensus algorithm, allowing convergence to the estimated position of the target
+simple thresholding to detect if the signal is recieved or not. The robots are able
+to coordinate their movements unsign a control scheme dictated by a Finite State Machine, allowing convergence to the estimated position of the target
 while avoiding obstacles. An iteration of the consensus algorithm enhances the precision of the target estimate. The performance of the proposed control
 framework is evaluated through simulations in a 2D environment,
 where the robots are tasked with finding and aligning around a target
@@ -59,8 +60,7 @@ uncertainties in the environment.
 \section*{The Task}
 
 The objective of this project is the localization of a target, modeled as a point object, within a two-dimensional environment. The problem is framed in the context of distributed cooperative control for a team of autonomous mobile robots.
-
-The proposed framework integrates three main components: a Voronoi--Lloyd partitioning scheme, an Extended Kalman Filter (EKF), and a linear consensus algorithm. The EKF is employed for sensor fusion, combining ead-reckoning data with camera-based position measurements. The robotic swarm is required to explore the environment, avoid obstacles, detect the target, and finally converge and align around it.
+The proposed framework integrates four main components: a Voronoi--Lloyd partitioning scheme, an Extended Kalman Filter (EKF), a Finite State Machine for the control and a linear consensus algorithm. The EKF is employed for sensor fusion, combining dead-reckoning data with camera-based position measurements. The robotic swarm is required to explore the environment, avoid obstacles, detect the target, and finally, converge and align around it.
 
 \subsection*{Structure and Workflow}
 
@@ -74,17 +74,11 @@ The simulation takes place in a 2D environment populated with obstacles, represe
     \item Target Found: Once the target is identified, all agents converge toward its estimated position. The estimate is progressively refined through iterations of the consensus algorithm.
 \end{itemize}
 
-\noindent
-State estimation is achieved via sensor fusion using the EKF, which combines velocity-based dead-reckoning with measurements from a fixed camera located in the top-right corner of the environment (see Figure~\ref{fig:environment}). 
+State estimation is achieved via sensor fusion using the EKF, which combines velocity-based dead-reckoning with measurements from a fixed camera located in the top-right corner of the environment (purple square in Figure~\ref{fig:environment}). 
 
 Voronoi cells are computed and used within the control logic of the FSM to improve spatial coordination among robots. 
 
 Additionally, agents communicate with one another by broadcasting messages that include: the position estimate provided by the EKF, locally mapped points contributing to a global map of the environment, and, once detected, the estimated position of the target.
-
-The number of agents, the obstacles shape and position, the room size and the target position are user defined.
-
-Each aspect described above will be discussed in the following sections of the report.
-
 
 \begin{figure}[H]
 \centering
@@ -93,8 +87,16 @@ Each aspect described above will be discussed in the following sections of the r
 \label{fig:environment}
 \end{figure}
 
+The target object (represented by the yellow area in Fig.~\ref{fig:environment}) cannot be sensed globally by the swarm. Instead, an agent detects the target only upon entering its localized emission range (blue circular region in Fig.~\ref{fig:environment}). Once inside this area, the robot estimates the target's position using a LiDAR sensor. For simplicity, the treasure is abstracted as a dimensionless point. This design choice was implemented to faithfully replicate the physical limitations inherent to real-world sensory systems, such as the bounded propagation radius of localized radio-frequency beacons.
 
-\newpage
+The number of agents, the obstacles shape and position, the room size and the target position are user defined.
+
+Each aspect described above will be discussed in the following sections of the report.
+
+
+
+
+
 
 \section*{Model and methods}
 
@@ -157,7 +159,6 @@ where the process noise $\boldsymbol{\nu}_k$ is assumed Gaussian:
 
 The covariance matrix is chosen diagonal:
 \begin{equation}
-
     \mathbf{Q} =
     \begin{bmatrix}
         \sigma_v^2 & 0 \\
@@ -194,7 +195,6 @@ Thus, the relation (Eq.~\ref{eq:f_suv}) can be written as:
 +
 \boldsymbol{\nu}_k
 \right)
-
 \end{equation}
 
 \subsection{Measurement and Sensing Model}
@@ -217,7 +217,7 @@ The robots are assumed to be equipped with the following sensing systems:
     + \mathbf{\epsilon}_k = H\cdot \mathbf{s} + \mathbf{\epsilon}_k
 \end{equation}
 
-where $\mathbf{\epsilon}_k$ represents the measurement noise, assumed to be Gaussian:
+Where $\mathbf{\epsilon}_k$ represents the measurement noise, assumed to be Gaussian:
 \begin{equation}
     \mathbf{\epsilon}_k \sim \mathcal{N}(\mathbf{0}, R)
 \end{equation}
@@ -237,13 +237,13 @@ The covariance matrix $R$ models the uncertainty of the vision system and is mod
 \begin{equation}
     z_d = d + n_d
 \end{equation}
-where $d$ is the true distance and $n_d$ is the measurement noise:
+Where $d$ is the true distance and $n_d$ is the measurement noise:
 \begin{equation}
     n_d \sim \mathcal{N}(0, \sigma_d^2)
     \label{eq:lidar_noise}
 \end{equation}
 
-This measurement is also used, together with the EKF estimate, to build the environment map as will be described in the following.
+This measurement is also used, together with the EKF estimate, to build the environment map and will be described in the following.
 
 
 \item Radio receiver: used to detect the signal emitted by the target. This sensor provides a binary measurement indicating the presence or absence of the signal within a certain detection range.
@@ -252,9 +252,9 @@ This measurement is also used, together with the EKF estimate, to build the envi
 
 \subsection{Communication System}
 
-The agents exchange data packets, as previously described, to share their state estimates, mapped points, and target information. To simulate a realistic communication scenario, the network is modeled similarly to \cite{consensusUSATO}. 
+The agents exchange data packets, as previously described, to share their state estimates, mapped points, and target information. To simulate a realistic communication scenario, the network is modeled similarly to the one proposed by Aysal \cite{consensusUSATO}. 
 
-Specifically, suppose the clock of node $i$ ticks at time step $t$. Node $i$ then broadcasts its current payload to all the others. Each agent transmits its data using a Time Division Multiple Access (TDMA) scheme, dividing the transmission channel into distinct time slots so that agents send sequentially in their assigned slot. 
+Specifically, suppose the clock of node $i$ ticks at time step $t$. Node $i$ then broadcasts its current payload to all the others. Each agent transmits its data using a Time Division Multiple Access (TDMA) scheme, dividing the transmission channel into distinct time slots so that agents send data in their assigned slot. 
 
 We also assume that all data in the payload is available at the transmission instant. While these assumptions simplify the simulation, we acknowledge they are not fully realistic; especially the TDMA protocol, as it requires a level of global clock coordination that may conflict with the pure decentralization intended for such systems. 
 
@@ -282,7 +282,7 @@ The network topology is modeled as a complete graph; therefore, each robot can a
         \caption{}
     \end{subfigure}
     
-    \caption{complete graphs.}
+    \caption{Complete graphs.}
     \label{fig:graph}
 \end{figure}
 
@@ -301,14 +301,14 @@ The algorithm runs in two main phases at each iteration: a prediction and an upd
 \subsubsection*{1) Prediction Step}
 In this phase, the algorithm exploits the knowledge of the current state estimate and the applied control input to forecast the state at the next time step using the system's non-linear dynamics (Eq.\ref{eq:f_suv}). We have:
 \begin{equation}
-    \hat{s}_{k+1}^{-} = f(\hat{s}_k, u_k),
+    \hat{s}_{k+1}^{-} = f(\hat{s}_k, u_k)
     \label{eq:ekf_predict_state}
 \end{equation}
 where $f$ is the model dynamics, $\hat{s}_k$ is the current state estimate, and $u_k$ is the applied control input. 
 
 Moreover, the covariance matrix is also propagated. Since the system model is non-linear, linearization around the current estimate is required:
 \begin{equation}
-    P_{k+1}^{-} = A_k P_k A_k^T + G_k Q G_k^T,
+    P_{k+1}^{-} = A_k P_k A_k^T + G_k Q G_k^T
     \label{eq:ekf_predict_cov}
 \end{equation}
 with $A_k$ and $G_k$ denoting the Jacobians of the dynamics with respect to the state and the process noise at the current time step $k$, respectively:
@@ -335,32 +335,32 @@ Computing explicitly the Jacobians of Eq. \ref{eq:ekf_jacobians} on the unicycle
 \subsubsection*{2) Update Step}
 Following the prediction phase, the EKF integrates the sensor measurements available at the current time step to refine the state estimate. In our framework, the sensing modality consists of a fixed global camera that provides direct observations of the robot's full pose (both 2D position and orientation). Since the sensor directly measures all the components of the state vector $\hat{s}_{k+1} = [x_{k+1}, y_{k+1}, \theta_{k+1}]^T$, the measurement model is linear. The measurement matrix $H$ is therefore the $3 \times 3$ identity matrix:
 \begin{equation}
-    H = \begin{bmatrix} 1 & 0 & 0 \\ 0 & 1 & 0 \\ 0 & 0 & 1 \end{bmatrix}.
+    H = \begin{bmatrix} 1 & 0 & 0 \\ 0 & 1 & 0 \\ 0 & 0 & 1 \end{bmatrix}
     \label{eq:ekf_H_matrix}
 \end{equation}
 Whenever a camera measurement $z_{k+1} \in \mathbb{R}^3$ becomes available at instant $k+1$, the EKF first computes the innovation:
 \begin{equation}
-    y_{k+1} = z_{k+1} - H \hat{s}_{k+1}^{-},
+    y_{k+1} = z_{k+1} - H \hat{s}_{k+1}^{-}
     \label{eq:ekf_innovation}
 \end{equation}
-which quantifies the discrepancy between the received measurement $z_{k+1}$ and its predicted value. The covariance of the innovation is computed as:
+Which quantifies the discrepancy between the received measurement $z_{k+1}$ and its predicted value. The covariance of the innovation is computed as:
 \begin{equation}
-    S_{k+1} = H P_{k+1}^{-} H^T + R_{k+1},
+    S_{k+1} = H P_{k+1}^{-} H^T + R_{k+1}
     \label{eq:ekf_innovation_cov}
 \end{equation}
-where $R_{k+1}$ denotes the $3 \times 3$ measurement noise covariance matrix associated with the camera  (Eq.~\ref{eq:R_matr}). The Kalman gain is then evaluated as:
+Where $R_{k+1}$ denotes the $3 \times 3$ measurement noise covariance matrix associated with the camera  (Eq.~\ref{eq:R_matr}). The Kalman gain is then evaluated as:
 \begin{equation}
-    W_{k+1} = P_{k+1}^{-} H^T S_{k+1}^{-1}.
+    W_{k+1} = P_{k+1}^{-} H^T S_{k+1}^{-1}
     \label{eq:ekf_kalman_gain}
 \end{equation}
 The corrected state estimate is subsequently obtained through:
 \begin{equation}
-    \hat{s}_{k+1} = \hat{s}_{k+1}^{-} + W_{k+1} y_{k+1},
+    \hat{s}_{k+1} = \hat{s}_{k+1}^{-} + W_{k+1} y_{k+1}
     \label{eq:ekf_update_state}
 \end{equation}
-followed by the covariance matrix update:
+Followed by the covariance matrix update:
 \begin{equation}
-    P_{k+1} = (I - W_{k+1} H) P_{k+1}^{-}.
+    P_{k+1} = (I - W_{k+1} H) P_{k+1}^{-}
     \label{eq:ekf_update_cov}
 \end{equation}
 
@@ -377,8 +377,8 @@ The prerequisite of this framework is to provide a distributed control logic tha
     \label{eq:voronoi_cell}
 \end{equation}
 Equation \ref{eq:voronoi_cell} assigns each robot located at $p_i$ a portion of the map: its Voronoi cell $V_i$. This region contains all points that are closer to robot $i$ than to all other robots, intrinsically granting inter-robot collision avoidance.
+\\
 
-\subsubsection*{2) Reactive Control for Static Obstacles}
 The Voronoi partitioning alone does not prevent collisions with static obstacles. To enforce this, the cell $V_i$ is constrained by the robot's sensing radius $r_s$ and line-of-sight visibility.
 
 
@@ -386,7 +386,7 @@ We define the $i$-th visibility set $S_i$ using a ray-casting approach, where th
 \begin{equation}
     S_i = \{q \in V_i \mid p_i - \gamma(p_i - q) \notin \mathcal{O}\}, \ \  \forall \gamma \in [0,1]
 \end{equation}
-where $\mathcal{O} \subset Q$ is the obstacle set, i.e., the set of points in the map corresponding to static obstacles.
+Where $\mathcal{O} \subset Q$ is the obstacle set, i.e., the set of points in the map corresponding to static obstacles.
 
 
 At this point, the resulting visibility set $S_i$ is intersected with the Voronoi cell, reducing it to the intermediate set $\bar{W_i}= V_i \cap S_i$. The reduced cell $\bar{W_i}$ is then bounded by the physical sensing radius of the robot $r_s$, yielding the final safe navigation cell $W_{i}$:
@@ -409,7 +409,7 @@ Another aspect to consider is that each agent requires the positions of its peer
 
 The outcome of this decentralized partitioning is illustrated in Fig. \ref{fig:vor}. As can be observed, the boundaries of the resulting Voronoi cells are not perfectly smooth, which is a direct consequence of the simulated LiDAR measurement noise. Furthermore, the spatial separation between the robots is slightly asymmetrical; this reflects the communication delays, as each agent computes its cell based on the periodically broadcasted, and therefore slightly outdated, positions of its peers.
 
-\begin{figure}
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.6\linewidth]{Figures/voronoi.png}
     \caption{Voronoi partition.}
@@ -425,9 +425,15 @@ To govern the behavior of the agents according to their current objectives, a Fi
 \subsubsection*{1) Lévy Flight Control}
 During the search phase, pure random walks are highly inefficient. Instead, the robots employ a Lévy flight exploration strategy. This method mimics the optimal foraging behaviors naturally observed in the animal kingdom, such as those of marine predators searching for prey \cite{levyDISTRIB}. Taking inspiration from the framework presented in \cite{levyUSED}, a new target heading $\theta_{target}$ is chosen uniformly at random, while the duration for which the robot maintains this heading is periodically sampled from a stable Lévy distribution, as illustrated in Fig. \ref{fig:levy}. 
 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\linewidth]{Figures/Levy_distrib.png}
+    \caption{Lévy distribution used.}
+    \label{fig:levy}
+\end{figure}
+
 To ensure practical applicability, minimum and maximum temporal bounds are enforced on the sampled values, which are also reported in the figure. These boundaries and the distribution parameters can be easily fine-tuned to better suit the scale and specific requirements of the mission at hand. This time-based sampling generates a characteristic movement pattern consisting of many short, localized searches interspersed with occasional long-distance relocations, allowing the swarm to cover large areas efficiently. 
 So during a time interval a vector $\vec{v}_{levy}$ is generated as:
-
 \begin{equation}
    \vec{v}_{levy} = \begin{bmatrix} \cos \theta_{target} \\ \sin \theta_{target} \end{bmatrix}
    \label{eq:levy_vecotor}
@@ -435,15 +441,10 @@ So during a time interval a vector $\vec{v}_{levy}$ is generated as:
 
 
 
-\begin{figure}
-    \centering
-    \includegraphics[width=0.65\linewidth]{Figures/Levy_distrib.png}
-    \caption{Lévy distribution used.}
-    \label{fig:levy}
-\end{figure}
+
 
 \subsubsection*{2) Obstacle Avoidance Control}
-To prevent collisions during exploration, a repulsive approach is adopted. We implement a quadratic bounded repulsive force. 
+To prevent collisions during exploration, a repulsive approach is adopted through a quadratic bounded repulsive force. 
 
 Let $d = \|p - p_{vor}\|$ be the Euclidean distance from the robot's position $p$ to the closest point $p_{vor}$ on its Voronoi. If this distance falls below a critical safety threshold $d_{min}$, a repulsive vector $\vec{v}_{rep}$ is generated:
 
@@ -456,7 +457,7 @@ k_{rep} (d_{min} - d)^2 \frac{p - p_{obs}}{d} & \text{if } d < d_{min} \\
 \label{eq:repuls_vect}
 \end{equation}
 
-where $k_{rep}$ is the repulsive gain. The fraction $\frac{p - p_{obs}}{d}$ computes the normalized directional vector pointing away from the obstacle. 
+Where $k_{rep}$ is the repulsive gain. The fraction $\frac{p - p_{obs}}{d}$ computes the normalized directional vector pointing away from the obstacle. 
 
 
 \subsubsection*{3) Wall Following Control}
@@ -475,7 +476,7 @@ v_{des,y}
 = \vec{t} + K_p \cdot e \cdot \vec{n}
 \end{equation}
 
-where $K_p$ is the proportional gain. 
+Where $K_p$ is the proportional gain. 
 
 The robot aligns its motion with this vector's angle, $\theta_{target} = \arctan2(v_{des,y}, v_{des,x})$, utilizing the following control law:
 
@@ -493,13 +494,13 @@ K_\omega (\theta_{target} - \theta)
 \label{eq:wall_follow_control}
 \end{equation}
 
-where $V_{lin}$ is the maximum linear velocity, $K_\omega$ is the angular velocity gain, and $\theta$ is the current heading of the robot.
+Where $V_{lin}$ is the maximum linear velocity, $K_\omega$ is the angular velocity gain, and $\theta$ is the current heading of the robot.
 
 Notably, the linear velocity is modulated by the cubed cosine of the heading error ($\cos^3$). This ensures a highly responsive behavior: if the angle error is large, the forward speed drops dramatically, allowing the robot to perform tight corrective turns before resuming its sliding motion along the wall.
 
 
 \subsubsection*{4) Formation Control and Lloyd's Algorithm}
-Once the target is located, the swarm transitions from exploration to a coordinated formation phase. To achieve a stable and distributed configuration around the target, we employ a Voronoi-based coverage strategy known as Lloyd's Algorithm \cite{fontanelli, Loyd_usato}, modified to incorporate environmental constraints and a specific spatial density.
+Once the target is located, the swarm transitions from exploration to a coordinated formation phase. To achieve a stable and distributed configuration around the target, the Voronoi-based coverage strategy known as Lloyd's Algorithm is employed \cite{fontanelli, Loyd_usato} and modified to incorporate environmental constraints and a specific spatial density.
 
 The fundamental objective is to distribute the agents according to a desired spatial density, defined by a Probability Density Function $\phi(q)$. Our framework follows the approach presented in \cite{Loyd_usato}, where $\phi(q)$ is designed as a ring-shaped PDF (Fig.\ref{fig:ringPDF}) centered at the estimated target position $p_{target}$. Specifically, this distribution is defined as:
 
@@ -507,11 +508,11 @@ The fundamental objective is to distribute the agents according to a desired spa
     \phi(q) = \exp \left( -\frac{(\|q - p_{target}\| - R_{ring})^2}{2\sigma^2} \right)
 \end{equation}
 
-where $q$ is a generic point in the mission space $Q$ and $R_{ring}$ is the desired radius of the circular formation. If $R_{ring} = 0$, the distribution collapses to a standard Gaussian centered on the target. To improve stability and prevent oscillations when agents are far from the goal, an adaptive standard deviation $\sigma$ is used:
+Where $q$ is a generic point in the mission space $Q$ and $R_{ring}$ is the desired radius of the circular formation. If $R_{ring} = 0$, the distribution collapses to a standard Gaussian centered on the target. To improve stability and prevent oscillations when agents are far from the goal, an adaptive standard deviation $\sigma$ is used:
 \begin{equation}
     \sigma = \sigma_0 \left( 1 + \frac{\|p - p_{target}\|}{R_{ad}} \right)
 \end{equation}
-where $\sigma_0$ is the base spread and $R_{ad}$ is a scaling distance. 
+Where $\sigma_0$ is the base spread and $R_{ad}$ is a scaling distance. 
 
 \begin{figure}[H]
     \centering
@@ -528,14 +529,14 @@ The centroid $C_{V_i}$ represents the local optimal position. Thus, we can defin
 \begin{equation}
     \vec{v}_{target} =  \begin{bmatrix} v_{target,x} \\ v_{target,y} \end{bmatrix}= (C_{V_i} - p) + k_{rep} \cdot \vec{v}_{rep}
 \end{equation}
-where $\vec{v}_{rep}$ is the repulsive vector from nearby obstacles. While the standard Lloyd control is inherently robust, the addition of the repulsive term ensures an extra layer of safety, allowing the robots to navigate more reliably around obstacles during the formation process.
+Where $\vec{v}_{rep}$ is the repulsive vector from nearby obstacles. While the standard Lloyd control is inherently robust, the addition of the repulsive term ensures an extra layer of safety, allowing the robots to navigate more reliably around obstacles during the formation process.
 
 Finally, the robot's velocities are generated using the following control law:
 \begin{equation}
     u_{lloyd} = \begin{bmatrix} v \\ \omega \end{bmatrix} = \begin{bmatrix} V_{lin} \ \cos^3(\theta_{target} - \theta) \\ K_\omega (\theta_{target} - \theta) \end{bmatrix}
     \label{eq:lloyd_control}
 \end{equation}
-where $\theta_{target} = \arctan2(v_{target,y}, v_{target,x})$. This formulation allows the swarm to converge smoothly into a ring formation while maintaining safety distances from boundaries.
+Where $\theta_{target} = \arctan2(v_{target,y}, v_{target,x})$. This formulation allows the swarm to converge smoothly into a ring formation while maintaining safety distances from boundaries.
 \\
 
 
@@ -571,7 +572,7 @@ This control strategy allows the robot to rotate in place when a sharp turn is r
 Upon encountering an unmapped obstacle, the robot temporarily suspends random exploration and enters the \texttt{INSPECTING} state. Here, the FSM switches to the wall-following control strategy $u_{wall}$ (Eq.\ref{eq:wall_follow_control}). The agent slides along the contour of the obstacle at a safe distance $d_{target}$, collecting new boundary points and continuously updating the swarm's shared map. 
 
 
-The robot reverts to the \texttt{SEARCHING} state under three specific conditions: if it detects a loop closure (indicating it has fully circumnavigated the obstacle or merged with an already mapped area), if it reaches a critical proximity to another robot (triggering a collision avoidance maneuver), or if it simply loses track of the wall..
+The robot reverts to the \texttt{SEARCHING} state under three specific conditions: if it detects a loop closure (indicating it has fully circumnavigated the obstacle or merged with an already mapped area), if it reaches a critical proximity to another robot (triggering a collision avoidance maneuver), or if it simply loses track of the wall.
 
 \subsubsection*{3) Treasure Found}
 This terminal phase is activated when the robot either enters the physical sensing range of the target object or receives the target's estimated coordinates through the swarm's consensus network. Once activated, both exploration and mapping halt entirely, and the FSM delegates the kinematic commands to the Voronoi-based Formation Control, $u_{lloyd}$ (Eq.\ref{eq:lloyd_control}). In this state, the agent converges toward the target and begins to arrange itself into the ring formation. While maintaining this formation, the robot continuously computes a weighted average of the target's position to build a shared consensus estimate, maneuvering to distribute itself evenly along the desired circular formation defined by the ring-shaped probability density function.
@@ -584,17 +585,240 @@ The mapping process begins with measurements acquisition through the LiDAR senso
 It is worth highlighting the realistic nature of the mapping mechanism employed to process these raw readings. In real-world applications, a robot perceives the environment relative to its true physical location, but it must register these sensor readings in a global coordinate frame relying solely on its estimated state. To faithfully replicate this paradigm, the simulated LiDAR captures measurements originating from the robot's ground-truth state, defined as $\mathbf{s} = [x, y, \theta]^T$. 
 
 However, because $\mathbf{s}$ is unknown to the robot, the mapping algorithm intentionally integrates the physical measurements $(z_d, \alpha)$ exclusively with the robot's current state estimate provided by the Extended Kalman Filter (EKF), denoted as $\hat{s} = [\hat{x}, \hat{y}, \hat{\theta}]^T$. To compute the absolute global coordinates of the newly discovered boundary points, $p_{map}$, a rigid body transformation is applied using the estimated state:
-\begin{equation}
-    p_{map} = \begin{bmatrix} \hat{x} \\ \hat{y} \end{bmatrix} + \begin{bmatrix} \cos(\hat{\theta}) & -\sin(\hat{\theta}) \\ \sin(\hat{\theta}) & \cos(\hat{\theta}) \end{bmatrix} \begin{bmatrix} z_d \cos(\alpha) \\ z_d \sin(\alpha) \end{bmatrix} = \begin{bmatrix} \hat{x} + z_d \cos(\hat{\theta} + \alpha) \\ \hat{y} + z_d \sin(\hat{\theta} + \alpha) \end{bmatrix}
-\end{equation}
+\begin{equation}\begin{split}
+    p_{map} & = \begin{bmatrix} \hat{x} \\ \hat{y} \end{bmatrix} + \begin{bmatrix} \cos(\hat{\theta}) & -\sin(\hat{\theta}) \\ \sin(\hat{\theta}) & \cos(\hat{\theta}) \end{bmatrix} \begin{bmatrix} z_d \cos(\alpha) \\ z_d \sin(\alpha) \end{bmatrix}\\
+    & = \begin{bmatrix} \hat{x} + z_d \cos(\hat{\theta} + \alpha) \\ \hat{y} + z_d \sin(\hat{\theta} + \alpha) \end{bmatrix}
+\end{split}\end{equation}
 
 As a result, the computed points $p_{map}$ are affected by the estimation error $e = x_{true} - \hat{x}_{ekf}$. The constructed shared map inherently reflects the localization uncertainties of the swarm, accurately modeling the intrinsic challenges of real-world robotic mapping where odometry drift directly distorts the generated map.
 
 Furthermore, the shared map is distributed across the swarm as a component of the broadcasted communication payload. Consequently, the global map is not instantaneously synchronized across the memory of all agents. Instead, newly mapped boundary points propagate iteratively through the network as the robots exchange data. This delayed, decentralized synchronization further enhances the realism of the simulation, accurately reflecting the communication constraints and data propagation dynamics inherent to physical multi-robot systems.
 
+
+\subsection{Consensus}
+Once the target is detected, the objective of the swarm is to accurately estimate its true position $p_{target}$ despite the presence of significant LiDAR sensor noise (Eq.\ref{eq:lidar_noise}) and also taking into account the fact that the agents communicate one at a time. To achieve this, the proposed framework implements the broadcast gossip algorithm discussed in \cite{consensusUSATO} alongside a two-tier estimation strategy: a temporal local sensor fusion (intra-robot) and a spatial network consensus (inter-robot). Crucially, both mechanisms continuously update the same variable, denoted as $\hat{p}_i$ for the $i$-th robot.
+
+\subsubsection*{1) Local Temporal Fusion}
+When an agent is within the physical sensing range of the target, it periodically samples the treasure at 1 Hz, obtaining a noisy measurement $z_{treasure}$ at fixed time intervals. Instead of relying on a single raw reading or storing large arrays of past measurements, the robot maintains a running average using a dynamic learning rate $\alpha$. Let $N_i$ be the total number of measurements taken by the $i$-th robot. The weight is defined as:
+
+\begin{equation}
+    \alpha = \frac{1}{N_i}
+\end{equation}
+
+The local value $\hat{p}_i$ is then iteratively updated as:
+
+\begin{equation}
+    \hat{p}_i^+ = (1-\alpha)\hat{p}_i^- + \alpha z_{treasure}
+    \label{eq:temporal_filter}
+\end{equation}
+
+This formulation corresponds to the exact mathematical average of all local measurements. As $N_i$ increases over time, $\alpha$ approaches zero, effectively filtering out the zero-mean Gaussian noise (Eq.\ref{eq:lidar_noise}) and stabilizing the local estimate.
+
+\subsubsection*{2) Spatial Network Consensus}
+To propagate this knowledge across the swarm, the agents utilize the Broadcast Gossip algorithm introduced next. When robot $i$ receives a payload containing a target estimate $\hat{p}_j$ from robot $j$, it fuses this incoming data directly into its own current state $\hat{p}_i$. The update law is governed by a constant mixing parameter $\gamma \in (0,1)$:
+
+\begin{equation}
+    \hat{p}_i^+ = (1-\gamma)\hat{p}_i^- + \gamma \hat{p}_j
+    \label{eq:spatial_filter}
+\end{equation}
+
+In our implementation, $\gamma$ is set to $0.5$, which computes the exact midpoint between the two estimates. Because both the temporal sensor fusion and the network gossip updates the exact same variable $\hat{p}_i$, a continuous distributed filter is inherently created. The discovering agents act as anchors, pulling their state toward the physical measurements, while this pairwise averaging rapidly drives the rest of the swarm to agree on a highly accurate global estimate, mitigating any residual local biases.
+
+\paragraph{Mathematical Formalization of Broadcast Gossip Consensus}
+Suppose that at time instant $k$, node $i$ is designated to share its estimate with the other agents. In this case, the remaining $N - 1$ robots, assuming no communication losses, receive the broadcasted value $\hat{p}_i(k)$ and update their spatial estimate as:
+\begin{equation}
+    \hat{p}_j(k+1) = \gamma \hat{p}_i(k) + (1-\gamma)\hat{p}_j(k), \quad \forall j \neq i,
+\end{equation}
+while the broadcaster keeps its current estimate:
+\begin{equation}
+    \hat{p}_i(k+1) = \hat{p}_i(k).
+\end{equation}
+
+These equations can be written compactly in vector form as:
+\begin{equation}
+    \mathbf{\hat{p}}(k+1) = Q(k)\mathbf{\hat{p}}(k)
+\end{equation}
+where $\mathbf{\hat{p}}(k) = [\hat{p}_1(k), \dots, \hat{p}_N(k)]^T \in \mathbb{R}^N$ is the global state vector containing the estimates of all robots, and the entries of the stochastic update matrix $Q(k) \in \mathbb{R}^{N \times N}$, corresponding to a broadcast by node $i$, are given by:
+\begin{equation}
+    Q_{lm} = 
+    \begin{cases} 
+        1, & l = m = i \\ 
+        1 - \gamma, & l = m \neq i \\ 
+        \gamma, & m = i, \ l \neq i \\ 
+        0, & \text{otherwise} 
+    \end{cases}
+\end{equation}
+
+This matrix is inherently \textit{row-stochastic} (each row sums to 1), which guarantees that the system remains mathematically stable. In our specific implementation, setting $\gamma = 0.5$ forces the receiving nodes to compute the exact arithmetic mean between their own estimate and the received one.
+
+The $Q$ matrix being row-stochastic, rather than doubly stochastic, only guarantees the convergence of the robot estimates to a consensus value, not to the exact average of their initial states (as demonstrated in \cite{consensusUSATO}). However, in our framework, computing a static average is not the objective; the goal is to find the exact physical location of the target. To overcome the theoretical limitations of a purely row-stochastic matrix, we leverage the Local Temporal Fusion described previously. 
+
+Because both the temporal sensor fusion (Eq.\ref{eq:temporal_filter}) and the spatial network consensus (Eq.\ref{eq:spatial_filter}) sequentially update the exact same state variable $\hat{p}_i$, they create a deeply intertwined distributed filter. 
+
+When a discovering robot updates its estimate with a new LiDAR measurement, it injects physical reality into its estimate. When it subsequently broadcasts this estimate, the receiving robots mix this physically-grounded estimate with their own. Therefore, the "current estimate" of any robot at time $k$ is actually a continuous accumulation of its own past measurements deeply mixed with the measurements of other robots shared via the network. As can be seen in Fig.\ref{fig:grafico_errore}, with this framework the estimation error converges to zero.
+
+
+
+\section*{Statistical Analysis and Validation}
+\begin{table}[htbp]
+    \centering
+    \renewcommand{\arraystretch}{1.2} 
+    \begin{tabular}{@{}llc@{}}
+        \toprule
+        \textbf{Parameter} & \textbf{Value} & \textbf{Unit} \\
+        \midrule
+        Sensing Range ($r_s$) & 3.0 & m \\
+        Nominal Linear Velocity ($V_{lin}$) & 1.0 & m/s \\
+        Obstacle Avoidance Threshold ($d_{min}$) & 1.0 & m \\
+        Angoular Velocity Gain ($K_\omega$) ($\alpha$) & 1 & - \\
+        Repulsive Gain Exploration ($k_{rep}$) & 8.0 & - \\
+        Repulsive Gain Formation ($k_{rep}$) & 0.5 & - \\
+        Ray-Casting Resolution & 10.0 & deg \\
+        Velocity Noise Std Dev ($\sigma_v$) & 0.05 & m/s \\
+        Angular Vel. Noise Std Dev ($\sigma_\omega$) & 0.01 & rad/s \\
+        Camera X-Pos. Noise Std Dev ($\sigma_x$) & 0.1 & m \\
+        Camera Y-Pos. Noise Std Dev ($\sigma_y$) & 0.1 & m \\
+        Camera Heading Noise Std Dev ($\sigma_\theta$) & 0.05 & rad \\
+        LiDAR Noise Std Dev ($\sigma_d$) & 0.05 & m \\
+        \bottomrule
+    \end{tabular}
+    \caption{Simulation and Control Parameters}
+    \label{tab:sim_parameters}
+\end{table}
+
+
+To rigorously evaluate the performance and robustness of the proposed multi-agent framework, a statistical analysis was conducted. Relying on a single simulation run is insufficient to assess systems heavily influenced by stochastic processes, such as Lévy flight exploration, LiDAR measurement noise, and communication dynamics. Therefore, $100$ independent simulations were executed in a fully decentralized, parallelized environment. Each run was allowed a maximum simulated time of $600$ seconds, which provided ample time for the swarm to explore the environment, detect the target, and achieve formation.
+
+\subsubsection{Simulation walkthrough}
+The simulated room is a $30 \times 20$ meter square environment containing several static obstacles of varying shapes and sizes, as well as a single target object (the "treasure") placed in the top-right corner of the room. The robots start from fixed positions, placed in the top-left side of the room. As the simulation begins, the agents immediately commence their FSM in the SEARCHING state, navigating the environment as described in the previous sections. As the environment is explored, the robots build a shared map of the obstacles. Eventually, one of the robots detects the target, triggering the "Treasure Found" state. The swarm then transitions to the formation phase, where they converge around the target while continuously refining their shared estimate of its position through the consensus algorithm. The simulation concludes when the maximum time limit is reached.
+
+The statistical evaluation focused on three primary indicators:
+
+\subsubsection*{1) Map coverage}
+Since the explorative movement of the agent is determined by the Lévy flight controller, we need to evaluate its efficiency in the map coverage. During the 100 simulations, the path taken by each robot has been recorded and displayed. By analyzing the result reported in Figure \ref{fig:grafico_traiettorie}, one can discover controller patterns or find blind areas, which would underline a failure in the map exploration task.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\linewidth]{Figures/grafico_traiettorie.png}
+    \caption{Map exploration coverage}
+    \label{fig:grafico_traiettorie}
+\end{figure}
+
+Observation of interesting behaviors about the controller implemented in the project is possible by focusing on Figure \ref{fig:grafico_traiettorie}: 
+
+\begin{itemize}[noitemsep]
+    \item The external walls are heavily traced, meaning the robots have a tendency to run along it, rather than wandering around the room.
+    
+    \item The entirety of the map seems to have pretty much the same coverage density. The only parts which are less explored are the bottom-right part, which is the farthest point from the robots' starting position, and the area around the treasure.
+\end{itemize}
+
+With this analysis, the Lévy flight control has been demonstrated, as expected, to be effective and thus is appropriate for this kind of application.
+
+\subsubsection*{2) Target Estimation Convergence}
+To evaluate the effectiveness of the two-tier sensor fusion and consensus algorithms, the global estimation error was tracked over time. The error is defined as the Euclidean distance between the true target position $p_{target}$ and the swarm's average estimated position $\hat{p}_{avg}(t)$ at any given time step $t$.To ensure a consistent comparison across all $100$ runs, the observation window was synchronized to start at $t=0$, defined as the exact moment the first robot physically detects the target. Figure \ref{fig:grafico_errore} illustrates the mean estimation error of the swarm over a $50$-second observation window following the initial detection. The solid blue line represents the mean error, while the shaded region denotes the standard deviation bounds ($\pm 1\sigma$).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\linewidth]{Figures/grafico_errore.png}
+    \caption{Target estimation error}
+    \label{fig:grafico_errore}
+\end{figure}
+
+The plot clearly demonstrates the power of the consensus algorithm: the initial estimation error drops precipitously as the first agent refines its local measurement using the temporal filter (Eq. \ref{eq:temporal_filter}). Furthermore, as the second and third robots arrive at the target and inject their independent readings into the broadcast network, the global error asymptotically converges toward zero, while the variance narrows significantly. This proves that the swarm's collective intelligence successfully mitigates individual sensor noise.
+
+\subsubsection*{3) Spatial Coordination and Arrival Efficiency}
+The second metric evaluates the efficiency of the exploration by recording the exact time it took for the first (FTT), second (STT), and third (TTT) robot to physically reach the target sensing radius.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\linewidth]{Figures/grafico_arrivi.png}
+    \caption{Time of arrival}
+    \label{fig:grafico_arrivi}
+\end{figure}
+
+Figure \ref{fig:grafico_arrivi} presents the boxplot distribution of these arrival times. The FTT distribution highlights the efficiency of the Lévy flight combined with the Voronoi partitioning, demonstrating that the environment is explored rapidly without the agents clustering redundantly in the same areas.
+
+More importantly, the STT and TTT distributions validate the robustness of the FSM and the communication network. Once the "Treasure Found" signal is broadcasted, the remaining agents successfully abandon their exploration routines and navigate toward the target. The relatively tight interquartile ranges of the STT and TTT compared to the FTT indicate that robots reliably circumvent static obstacles using the integrated repulsive control, allowing the entire swarm to form the desired ring configuration consistently. 
+
+Another interesting metric to observe is the first discovery distribution among robots. If the robots were to explore randomly, given similar spawning positions, one could expect to find an equal distribution among agents, although simulations report:
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\linewidth]{Figures/grafico_scoperte.png}
+    \caption{Treasure discovery distribution}
+    \label{fig:distribScoperte}
+\end{figure}
+
+Taking into account both Figures \ref{fig:grafico_traiettorie} and \ref{fig:distribScoperte}, it can be possible to motivate why the first detection distribution is not uniform. As can be seen by the coverage of the simulated trajectories, the right-hand side of the map is primarily covered by green lines, indicating that the casuality of the Lévy Flight control in this particular environment leads to Robot 3 (green) exploring that particular portion of the map. Robots 1 and 2 tend to wonder around the left-hand side. 
+
+
+\subsection*{4) Formation convergence}
+
+Now we want to evaluate the circular formation quality by plotting the error between the actual physical distance of each robot from the target and the desired ring radius. Specifically, the distance error for the $i$-th robot at time $t$ is defined as:
+\begin{equation}
+    e_i(t) = \left| \|\mathbf{p}_i(t) - \mathbf{p}_{\text{target}}\| - r_{\text{ring}} \right|
+\end{equation}
+where $\mathbf{p}_i(t)$ is the true position of the robot, $\mathbf{p}_{\text{target}}$ is the position of the localized package, and $r_{\text{ring}}$ is the target radius of the circular formation.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.75\linewidth]{Figures/Mult_runs_converg_ring.png}
+    \caption{Distance error from the target ring radius during exploration and formation phases across multiple independent runs.}
+    \label{fig:err_formation}
+\end{figure}
+
+As can be seen in Fig. \ref{fig:err_formation}, the simulation data aggregated over multiple independent runs demonstrates the robustness and repeatability of the algorithm. During the initial exploration phase (before the vertical dashed line), the distance error fluctuates randomly as the robots perform their search (e.g., via Lévy flight) to locate the target. 
+
+Once a robot senses the target, the event is broadcasted, and the consensus algorithm rapidly synchronizes the swarm's knowledge. At this precise instant (marked by the dashed line), the Lloyd-based formation control is triggered. The plot clearly shows that, regardless of the robots' arbitrary initial positions across the different runs, the error curves for all agents asymptotically collapse near zero, not perfectly at zero due to uncertainties introduced by the EKF and the LiDAR noise. This proves that the swarm successfully and reliably converges to the desired geometric configuration around the package, within the limits of the system's estimation accuracy.
+
+\subsection*{5) EKF estimation quality}
+
+To evaluate the quality of the Extended Kalman Filter (EKF) estimation, we computed the error between the robot's true state and its estimated state, as shown in Fig. \ref{fig:EKF_err}. 
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.75\linewidth]{Figures/EKF_err.png}
+    \caption{EKF position and heading tracking error. Shaded areas indicate periods of camera occlusion where the robot relies solely on dead reckoning.}
+    \label{fig:EKF_err}
+\end{figure}
+
+Specifically, the position error ,as the Euclidean distance between the true and estimated coordinates, and the heading error, as the absolute value of the angular difference, were used.
+
+As highlighted by the shaded regions in the plot, when the robot is occluded by obstacles and loses the global camera signal, the EKF is unable to perform the measurement update step. During these periods, the filter relies entirely on the prediction model (dead reckoning). Consequently, the estimation error inevitably grows due to the continuous accumulation of process noise and odometric drift.
+
+Interestingly, while the position error diverges rapidly during occlusions, the heading error appears relatively stable. This occurs because the angular estimation error evolves as a zero-mean random walk driven by a very small angular velocity noise; it grows slowly, and statistical compensations can occasionally bring the absolute error momentarily back near zero. However, due to the robot's constant forward velocity, even a fractional angular deviation generates a significant lateral drift over time, which explains the sharp divergence observed in the position error.
+
+This highlights the critical role of LiDAR-based Voronoi partitioning: it provides reactive obstacle avoidance, preventing collisions even when the global position belief is severely degraded. Moreover, the overall EKF performance remains highly satisfactory, successfully and instantly correcting the accumulated drift as soon as the camera line-of-sight is restored.
+
+\subsection*{6) Scalability Analysis}
+To assess the scalability of the proposed framework, additional simulations were conducted with varying swarm sizes (experiments with 1 and 5 robots). The key performance indicators, such as Time-To-First-Detection (TTFD), discovery distribution and convergence, were analyzed to understand how the system's efficiency and robustness evolve. As expected, decreasing the number of robots to 1 significantly increased the overall TTFD, while the convergence of the estimation error is notably faster in the first few seconds, but then plateaus at a higher value compared to the 3-robot and 5-robot cases. Conversely, increasing the swarm size to 5 reduced the overall TTFD and has the opposite effect on the convergence compared to the single-robot case. Moreover, the discovery distribution becomes more uniform as the number of robots increases, indicating a more balanced exploration of the environment. The results of this scalability analysis are available in the appendix section of the report.  
+
+
 \section*{Conclusions}
+This project presented a fully decentralized, multi-layered control framework for a swarm of autonomous mobile robots tasked with exploring an unknown environment and localizing a target.
+
+The integration of the Extended Kalman Filter (EKF) proved highly effective in maintaining accurate state estimation by fusing noisy velocity commands with intermittent global camera measurements, ensuring robustness even during periods of visual occlusion. The exploration phase, governed by the Lévy flight strategy and bounded by Voronoi-based spatial partitioning, allowed the agents to efficiently cover the environment while inherently preventing inter-robot collisions.
+
+The transition from exploration to formation control, managed by a robust Finite State Machine, demonstrated the flexibility of the swarm. Upon target detection, the modified Lloyd's algorithm successfully guided the robots into a stable ring formation around the objective, integrating repulsive vectors to navigate safely around static obstacles during the approach.
+
+Finally, the statistical validation conducted through simulations highlighted the strength of the proposed two-tier consensus algorithm. The temporal filtering combined with the Broadcast Gossip network allowed the swarm to dramatically reduce the estimation error over time. The results demonstrated that the collective intelligence of the swarm not only reduces the Time-To-First-Detection (TTFD) variance compared to a single agent, but also achieves an asymptotic convergence of the localization error to near-zero values, proving the overall reliability and scalability of the proposed approach.
 
 
+\section*{Possible Improvements}
+
+Future developments of this project could address current limitations by expanding on both the simulation setup and the control architecture. Specifically, the following key improvements are proposed:
+
+\subsubsection*{Advanced Exploration Strategies}
+The current framework relies on a Lévy Flight controller, which can be inefficient in larger or open environments. It frequently leads to the revisitation of already explored regions, and poorly placed obstacles can cause robots to become trapped in isolated map sectors. To overcome this, a more sophisticated exploration strategy could be implemented, such as the one proposed in \cite{zhou2021fuel}. This method utilizes a Frontier Information Structure (FIS) combined with a hierarchical planner, enabling the swarm to achieve faster and more efficient global coverage.
+
+\subsubsection*{Realistic Robot Kinematics and Dynamics}
+Currently, the agents are modeled using simplified unicycle kinematics. While effective for high-level control design, this model lacks physical fidelity. Future work should transition to a more realistic differential-drive formulation. Incorporating constraints such as motor torque limits, inertia, and non-linear wheel slip would significantly reduce the reality gap, facilitating a smoother transition from simulation to real-world deployment.
+
+\subsubsection*{Refined Perception and Mapping}
+The current mapping procedure relies on a simplified assumption regarding the LiDAR measurements. Specifically, the fact that robots can detect and potentially map each other as static obstacles is not explicitly handled. A necessary improvement would be the implementation of a dynamic obstacle tracking and filtering system. This would allow the agents to accurately distinguish between their moving peers and the static environment, preventing the corruption of the shared global map.
+
+\subsubsection*{Robust Communication and Consensus}
+The current implementation of the linear consensus algorithm assumes an ideal communication network with no data loss or delays. Future research should investigate the impact of realistic communication constraints, such as packet loss, latency, and limited bandwidth, on the convergence properties of the system. Additionally, exploring asynchronous consensus strategies that are intrinsically more robust to network failures and intermittent connectivity would greatly enhance the reliability of the swarm in unstructured real-world scenarios.
 
 %\begin{acknowledgements}
 %\blindtext
@@ -608,6 +832,30 @@ Furthermore, the shared map is distributed across the swarm as a component of th
 %the command above ignores this section for word count
 \onecolumn
 \newpage
+
+\section*{Appendix}
+
+% using all the space of the page rather than the two-colum format
+
+\begin{figure*}
+    \centering
+    \captionsetup{labelformat=empty}
+    \begin{minipage}{0.3\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Figures/Appendix/grafico_arrivi_1_ROBOTS.png}
+    \end{minipage}
+        \begin{minipage}{0.3\textwidth}
+            \centering
+            \includegraphics[width=\textwidth]{Figures/Appendix/grafico_arrivi_1_ROBOTS.png}
+    \end{minipage}
+        \begin{minipage}{0.3\textwidth}
+            \centering
+            \includegraphics[width=\textwidth]{Figures/Appendix/grafico_arrivi_1_ROBOTS.png}
+    \end{minipage}
+    \captionsetup{labelformat=default}
+    \caption{Distance error from the target ring radius during exploration and formation phases across multiple independent runs.}
+    \label{fig:err_formation}
+\end{figure*}
 
 % \section*{Word Counts}
 % This section is \textit{not} included in the word count. 

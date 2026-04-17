@@ -548,7 +548,9 @@ class MotionController:
                 
         # --- 2. INSPECTING STATE (Mapping Mode) --- 
         elif robot.state_mode == "INSPECTING":
-            
+            swarm_size = len(robot.other_robots_positions) + 1
+            loop_buffer = 15 if swarm_size < 3 else 50
+
             # Store new visible obstacle points
             if len(visible_hit_points) > 0:
                 for new_pt in visible_hit_points:
@@ -568,7 +570,7 @@ class MotionController:
             # Check for loop closure and if the robot is mapping an already well mapped area
             loop_closed = False
             IGNORE_RADIUS_LOOP = cfg.MAP_RESOLUTION * 4.5
-            safe_history_index = len(robot.shared_map) - 50 # Only check for loop closure with points that are at least 50 steps old to avoid false positives with current mapping area
+            safe_history_index = len(robot.shared_map) - loop_buffer # Only check for loop closure with points that are at least 50 steps old to avoid false positives with current mapping area
             
             if safe_history_index > 0 and target_arr is not None:
                 for pt in robot.shared_map[:safe_history_index]:
