@@ -64,7 +64,7 @@ class EKF:
         self.x_est = np.copy(initial_state).astype(float)
         
         # Covariance matrix (Starts very confident since we spawn the robots)
-        self.P = np.eye(3) * 0.01 
+        self.P = cfg.CAM_NOISE_STD ** 2 * np.eye(3) # Initial covariance based on camera noise 
         
         self.dt = dt
         
