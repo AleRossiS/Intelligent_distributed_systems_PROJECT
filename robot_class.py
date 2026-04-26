@@ -14,10 +14,12 @@ class Robot:
   
   def __init__(self, robot_id, x = 0.0, y = 0.0, theta = 0.0, radius = cfg.ROBOT_RADIUS, color = 'blue', dt=0.1):
     
-    # Robot attributes
-    self.robot_id = robot_id
-    self.state = np.array([x, y, theta], dtype=float) # [x, y, theta] EKF state estimate
     self.true_state = np.array([x, y, theta], dtype=float) # True state for simulation purposes (not accessible to the robot)
+    
+    # EKF initial state = camera measurement
+    cam_noise = np.random.normal(0, cfg.CAM_NOISE_STD)
+    self.state = self.true_state + cam_noise #EKF state initial estimate (= initial camera measurement with noise) 
+    self.robot_id = robot_id
     self.ekf = EKF(initial_state=self.state, dt=dt) # EKF instance for localization
     self.radius = radius
     self.color = color
