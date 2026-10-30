@@ -13,7 +13,7 @@ The project combines:
 
 > Project for the *Intelligent Distributed Systems* course, University of Trento.
 > Authors: **Alessandro Rossi**, **Lorenzo Franco**.
-> 📄 Full report: [`Report/Report.pdf`](Report/Report.pdf)
+> Full report: [`Report/Report.pdf`](Report/Report.pdf)
 
 ---
 
