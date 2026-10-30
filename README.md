@@ -19,8 +19,15 @@ The project combines:
 
 ## Demo
 
-<!-- VIDEO PLACEHOLDER: replace with the run recordings -->
-*Simulation videos coming soon.*
+A full run with 3 robots: exploration with Lévy flight, obstacle mapping (black crosses), target detection and ring formation around the target. The purple lines show when the global camera can see each robot.
+
+<p align="center">
+  <a href="results/Video_robot.mp4">
+    <img src="results/demo.gif" width="85%" alt="Simulation run with 3 robots">
+  </a>
+  <br>
+  <em>Preview at 4× speed. Click to open the full video (<a href="results/Video_robot.mp4">results/Video_robot.mp4</a>).</em>
+</p>
 
 ---
 
