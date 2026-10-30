@@ -57,3 +57,7 @@ Thumbs.db
 
 # simulation files (too big for git)
 *.pkl
+
+# Simulation outputs (raw data from statistic_test.py)
+results/data/*
+!results/data/.gitkeep

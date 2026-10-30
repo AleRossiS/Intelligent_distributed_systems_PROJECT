@@ -1,0 +1,5 @@
+numpy
+scipy
+matplotlib
+shapely>=2.0
+pygame-ce

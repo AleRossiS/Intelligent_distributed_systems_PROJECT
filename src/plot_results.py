@@ -1,9 +1,13 @@
+import os
 import pickle 
 import numpy as np
 import matplotlib.pyplot as plt
 
 # 1. Carica i Dati
-FILENAME = 'experiments_pkl_files/experiment_results_1_robots.pkl' 
+RESULTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'results')
+FILENAME = os.path.join(RESULTS_DIR, 'data', 'experiment_results_1_robots.pkl')
+FIG_DIR = os.path.join(RESULTS_DIR, 'figures')
+os.makedirs(FIG_DIR, exist_ok=True)
 
 try:
     with open(FILENAME, 'rb') as f:
@@ -64,7 +68,7 @@ if aligned_errors:
     plt.ylim(-0.0, max(mean_err)+ 0.05)
     plt.legend()
     plt.tight_layout()
-    plt.savefig(f'simulation_FIGURES/grafico_errore_{SWARM_SIZE}_ROBOTS.png', dpi=300)
+    plt.savefig(f'{FIG_DIR}/grafico_errore_{SWARM_SIZE}_ROBOTS.png', dpi=300)
     print(f"Grafico 1: 'grafico_errore_{SWARM_SIZE}_ROBOTS.png' salvato.")
 
 # =========================================================
@@ -92,7 +96,7 @@ for patch, color in zip(box['boxes'], ROBOT_COLORS[:SWARM_SIZE]):
 plt.title(f"Time distribution for arrival at the Treasure ({SWARM_SIZE} Robots)")
 plt.ylabel("Time [s]")
 plt.tight_layout()
-plt.savefig(f'simulation_FIGURES/grafico_arrivi_{SWARM_SIZE}_ROBOTS.png', dpi=300)
+plt.savefig(f'{FIG_DIR}/grafico_arrivi_{SWARM_SIZE}_ROBOTS.png', dpi=300)
 print(f"Grafico 2: 'grafico_arrivi_{SWARM_SIZE}_ROBOTS.png' salvato.")
 
 # =========================================================
@@ -149,7 +153,7 @@ if trajectories_data:
     plt.ylim(-10, 10)
     plt.axis('equal') # Mantiene le proporzioni quadrate
     plt.tight_layout()
-    plt.savefig(f'simulation_FIGURES/grafico_traiettorie_{SWARM_SIZE}_ROBOTS.png', dpi=300)
+    plt.savefig(f'{FIG_DIR}/grafico_traiettorie_{SWARM_SIZE}_ROBOTS.png', dpi=300)
     print(f"Grafico 3: 'grafico_traiettorie_{SWARM_SIZE}_ROBOTS.png' salvato.")
 
     # =========================================================
@@ -179,7 +183,7 @@ if first_finders:
         
         plt.title(f"First Detection Distribution ({SWARM_SIZE} Robots)")
         plt.tight_layout()
-        plt.savefig(f'simulation_FIGURES/grafico_scoperte_{SWARM_SIZE}_ROBOTS.png', dpi=300)
+        plt.savefig(f'{FIG_DIR}/grafico_scoperte_{SWARM_SIZE}_ROBOTS.png', dpi=300)
         print(f"Grafico 4: 'grafico_scoperte_{SWARM_SIZE}_ROBOTS.png' salvato.")
 
 plt.show()

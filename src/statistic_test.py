@@ -197,7 +197,9 @@ if __name__ == '__main__':
     # Tempo totale
     elapsed = time() - start_time
     
-    filename = f'experiments_pkl_files/experiment_results_{SWARM_SIZE}_robots.pkl'
+    data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'results', 'data')
+    os.makedirs(data_dir, exist_ok=True)
+    filename = os.path.join(data_dir, f'experiment_results_{SWARM_SIZE}_robots.pkl')
     with open(filename, 'wb') as f:
         pickle.dump(experiment_data, f)
         
