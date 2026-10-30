@@ -15,10 +15,6 @@ The project combines:
 > Authors: **Alessandro Rossi**, **Lorenzo Franco**.
 > 📄 Full report: [`Report/Report.pdf`](Report/Report.pdf)
 
-<p align="center">
-  <img src="Report/Figures/environment.png" width="75%" alt="Simulation environment">
-</p>
-
 ---
 
 ## Demo
